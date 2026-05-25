@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ContentItem, ContentType, ContentStatus } from '@/lib/types'
 import { toast } from 'sonner'
-import { Plus, X, FileText, Send, Sparkles, Pencil, Trash2, ExternalLink } from 'lucide-react'
+import { Plus, X, FileText, Send, Sparkles, Pencil, Trash2, ExternalLink, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 const TYPES: { value: ContentType; label: string; icon: string }[] = [
@@ -21,7 +21,29 @@ const STATUSES: { value: ContentStatus; label: string; color: string }[] = [
   { value: 'published', label: 'Published', color: 'bg-emerald-500/20 text-emerald-400' },
 ]
 
-const EMPTY_FORM = { title: '', type: 'linkedin' as ContentType, status: 'idea' as ContentStatus, body: '', notes: '', publish_date: '', case_study_ref: '', tags: '' }
+export const DEFAULT_STYLE = `You are a ghostwriter for Jon, founder of AI Business Concepts — a CPA-led AI consulting firm for small businesses.
+
+Jon's voice and brand:
+- Professional but approachable — not overly corporate, not casual
+- Leads with measurable outcomes (hours saved, money saved, ROI)
+- Draws on 25+ years of finance/accounting/operations experience
+- Practical and implementation-focused, not just theoretical AI hype
+- Speaks to small business owners, not enterprise executives
+- Core message: AI removes busywork so owners can focus on growing their business
+
+For LinkedIn posts:
+- 150-200 words maximum
+- Hook in the first line (no "I" to start, no generic openers)
+- Short paragraphs, line breaks for readability
+- End with a call to action or engaging question
+- No hashtag spam (1-2 max if truly relevant)
+
+For blog posts: provide an outline with key sections and 1-2 sentences per section.
+For emails: subject line + body, professional but warm.
+
+Write in first person as Jon. Make it sound human, not AI-generated.`
+
+const EMPTY_FORM = { title: '', type: 'linkedin' as ContentType, status: 'idea' as ContentStatus, body: '', notes: '', publish_date: '', case_study_ref: '', tags: '', ai_style: '' }
 
 export default function ContentPage() {
   const supabase = createClient()
@@ -36,6 +58,7 @@ export default function ContentPage() {
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiOutput, setAiOutput] = useState('')
   const [aiStreaming, setAiStreaming] = useState(false)
+  const [showStyleEditor, setShowStyleEditor] = useState(false)
   const aiEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { load() }, [])
@@ -54,7 +77,9 @@ export default function ContentPage() {
       body: item.body ?? '', notes: item.notes ?? '',
       publish_date: item.publish_date ?? '', case_study_ref: item.case_study_ref ?? '',
       tags: item.tags?.join(', ') ?? '',
+      ai_style: item.ai_style ?? '',
     })
+    setShowStyleEditor(false)
     setShowModal(true)
   }
 
@@ -67,6 +92,7 @@ export default function ContentPage() {
       body: form.body || null, notes: form.notes || null,
       publish_date: form.publish_date || null,
       case_study_ref: form.case_study_ref || null,
+      ai_style: form.ai_style || null,
       tags,
     }
     if (editing) {
@@ -101,7 +127,7 @@ export default function ContentPage() {
       const res = await fetch('/api/content/write', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: aiPrompt, context }),
+        body: JSON.stringify({ prompt: aiPrompt, context, styleOverride: selected?.ai_style || null }),
       })
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
@@ -315,6 +341,45 @@ export default function ContentPage() {
                 <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
                   className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none resize-none"
                   placeholder="Angle, hook, references…" />
+              </div>
+
+              {/* AI Writing Style */}
+              <div className="border border-navy-600 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowStyleEditor(v => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 bg-navy-700 hover:bg-navy-600 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-gold-500" />
+                    <span className="text-xs font-medium text-cream-200/80">AI Writing Style</span>
+                    {form.ai_style
+                      ? <span className="text-[10px] bg-gold-500/20 text-gold-400 px-1.5 py-0.5 rounded">customized</span>
+                      : <span className="text-[10px] text-cream-200/30">default</span>
+                    }
+                  </div>
+                  {showStyleEditor ? <ChevronUp className="w-3.5 h-3.5 text-cream-200/40" /> : <ChevronDown className="w-3.5 h-3.5 text-cream-200/40" />}
+                </button>
+                {showStyleEditor && (
+                  <div className="p-3 bg-navy-800 border-t border-navy-600">
+                    <p className="text-[10px] text-cream-200/40 mb-2">This is the style guide Claude uses when writing for this content item. Edit it to change the tone, format, or voice for this specific piece.</p>
+                    <textarea
+                      value={form.ai_style || DEFAULT_STYLE}
+                      onChange={e => setForm(f => ({ ...f, ai_style: e.target.value }))}
+                      rows={10}
+                      className="w-full bg-navy-700 border border-navy-600 rounded-lg text-xs text-cream-100 px-3 py-2 focus:border-gold-500 focus:outline-none resize-y font-mono leading-relaxed"
+                    />
+                    {form.ai_style && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, ai_style: '' }))}
+                        className="flex items-center gap-1 text-[10px] text-cream-200/40 hover:text-cream-200/70 mt-2 transition-colors"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Reset to default
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-3 p-6 pt-0">

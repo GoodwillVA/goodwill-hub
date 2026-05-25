@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
 
-  const { prompt, context }: { prompt: string; context: string } = await request.json()
+  const { prompt, context, styleOverride }: { prompt: string; context: string; styleOverride?: string } = await request.json()
 
   const userMessage = context
     ? `Context about this content piece:\n${context}\n\nRequest: ${prompt}`
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    system: styleOverride || SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   })
 

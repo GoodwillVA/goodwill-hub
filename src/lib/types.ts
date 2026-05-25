@@ -68,5 +68,6 @@ export interface ContentItem {
   tags: string[]
   notes: string | null
   case_study_ref: string | null
+  ai_style: string | null
   created_at: string
 }
