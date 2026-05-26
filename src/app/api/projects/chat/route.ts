@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const [{ data: project }, { data: tasks }, { data: meetings }] = await Promise.all([
     supabase.from('projects').select('*').eq('id', projectId).single(),
     supabase.from('tasks').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
-    supabase.from('meetings').select('id, title, meeting_date, summary').eq('project_id', projectId).order('meeting_date', { ascending: false }).limit(5),
+    supabase.from('meetings').select('id, title, meeting_date, summary, action_items').eq('project_id', projectId).order('meeting_date', { ascending: false }).limit(5),
   ])
 
   const isGeneral = project?.is_general ?? false
@@ -53,7 +53,13 @@ You can help with anything: brainstorming ideas, drafting communications, analyz
         ? `Completed tasks (${doneTasks.length}): ${doneTasks.map((t: { title: string }) => t.title).join(' · ')}`
         : '',
       recentMeetings.length > 0
-        ? `Recent meetings: ${recentMeetings.map((m: { title: string; meeting_date: string }) => `${m.title} (${m.meeting_date})`).join(' · ')}`
+        ? `Recent meetings:\n${recentMeetings.map((m: { title: string; meeting_date: string; summary: string | null; action_items: { title: string; done: boolean }[] | null }) => {
+            const lines = [`- ${m.title} (${m.meeting_date})`]
+            if (m.summary) lines.push(`  Summary: ${m.summary}`)
+            const openItems = (m.action_items ?? []).filter(a => !a.done)
+            if (openItems.length > 0) lines.push(`  Open action items: ${openItems.map(a => a.title).join(', ')}`)
+            return lines.join('\n')
+          }).join('\n')}`
         : '',
     ].filter(Boolean).join('\n')
 
