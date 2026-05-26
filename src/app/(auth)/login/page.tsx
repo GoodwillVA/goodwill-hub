@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { BrainCircuit } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState('jon.harris@goodwillvirginia.org')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,22 +29,25 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-navy-900 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
+
         {/* Brand */}
         <div className="flex flex-col items-center mb-10">
-          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-navy-700 border border-gold-500/30 mb-4">
-            <BrainCircuit className="w-7 h-7 text-gold-500" />
-          </div>
-          <h1 className="text-2xl font-bold text-cream-100 tracking-tight">AIBC HQ</h1>
-          <p className="text-sm text-cream-200/60 mt-1">AI Business Concepts</p>
+          <img
+            src="/goodwill-logo.png"
+            alt="Goodwill of Central and Coastal Virginia"
+            className="w-52 mb-5"
+          />
+          <h1 className="text-xl font-bold text-cream-100 tracking-tight">Goodwill Hub</h1>
+          <p className="text-sm text-cream-200/50 mt-1">Goodwill of Central and Coastal Virginia</p>
         </div>
 
         {/* Card */}
         <div className="bg-navy-800 border border-navy-600 rounded-2xl p-8">
-          <h2 className="text-lg font-semibold text-cream-100 mb-6">Sign in to your workspace</h2>
+          <h2 className="text-base font-semibold text-cream-100 mb-6">Sign in to your workspace</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-cream-200/80 mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-cream-200/70 mb-1.5">Email</label>
               <input
                 type="email"
                 value={email}
@@ -53,12 +55,11 @@ export default function LoginPage() {
                 required
                 autoComplete="email"
                 className="w-full bg-navy-700 border border-navy-600 rounded-lg px-4 py-2.5 text-cream-100 placeholder-cream-200/30 text-sm focus:border-gold-500 focus:outline-none transition-colors"
-                placeholder="jon@aibusinessconcepts.com"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-cream-200/80 mb-1.5">Password</label>
+              <label className="block text-sm font-medium text-cream-200/70 mb-1.5">Password</label>
               <input
                 type="password"
                 value={password}
@@ -85,6 +86,10 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+
+        <p className="text-center text-[11px] text-cream-200/25 mt-6">
+          Goodwill of Central and Coastal Virginia &copy; {new Date().getFullYear()}
+        </p>
       </div>
     </div>
   )
