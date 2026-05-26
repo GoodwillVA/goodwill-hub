@@ -3,6 +3,7 @@ import { Clock, FolderKanban, CalendarDays, Lightbulb, ArrowRight, Circle } from
 import { formatDate, isDueSoon, isOverdue } from '@/lib/utils'
 import { Idea, Project, MonthlyTask } from '@/lib/types'
 import Link from 'next/link'
+import DayView from './DayView'
 
 function getActiveCloseMonthStr(): string {
   const today = new Date()
@@ -61,6 +62,9 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold text-cream-100">{greeting}, Jon</h1>
         <p className="text-cream-200/50 text-sm mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       </div>
+
+      {/* 3-Day View */}
+      <DayView />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

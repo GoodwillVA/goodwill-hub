@@ -4,6 +4,8 @@ export type ContactStage = 'discovery' | 'proposal' | 'active' | 'complete' | 'l
 export type ProjectStatus = 'scoping' | 'in-progress' | 'review' | 'delivered'
 export type ContentType = 'linkedin' | 'blog' | 'email' | 'other'
 export type ContentStatus = 'idea' | 'draft' | 'scheduled' | 'published'
+export type MeetingType = 'client-call' | 'discovery' | 'internal' | 'follow-up' | 'board' | 'training' | 'external' | 'other'
+export type MeetingStatus = 'scheduled' | 'completed' | 'cancelled'
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
@@ -45,6 +47,8 @@ export interface Project {
   due_date: string | null
   value: number | null
   area: string | null
+  is_general: boolean
+  ai_thread: ChatMessage[]
   created_at: string
   contact?: Contact
   tasks?: Task[]
@@ -59,9 +63,6 @@ export interface Task {
   created_at: string
 }
 
-export type MeetingType = 'client-call' | 'discovery' | 'internal' | 'follow-up' | 'other'
-export type MeetingStatus = 'scheduled' | 'completed' | 'cancelled'
-
 export interface ActionItem {
   id: string
   title: string
@@ -73,6 +74,7 @@ export interface ActionItem {
 export interface MeetingAttendee {
   name: string
   position: string | null
+  organization: string | null
 }
 
 export interface MeetingSeries {
@@ -85,6 +87,7 @@ export interface SavedAttendee {
   id: string
   name: string
   position: string | null
+  organization: string | null
   created_at: string
 }
 
@@ -135,5 +138,17 @@ export interface MonthlyTask {
   notes: string | null
   sort_order: number
   is_recurring: boolean
+  created_at: string
+}
+
+export interface DayFocusItem {
+  id: string
+  focus_date: string          // 'YYYY-MM-DD'
+  item_type: 'task' | 'monthly_task' | 'freeform'
+  title: string | null        // freeform text OR cached display title
+  task_id: string | null
+  monthly_task_id: string | null
+  sort_order: number
+  completed: boolean          // freeform only; linked items use source table
   created_at: string
 }

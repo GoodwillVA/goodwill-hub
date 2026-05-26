@@ -2,12 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Lightbulb, FolderKanban, CalendarDays, ClipboardList, LogOut } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, CalendarDays, ClipboardList, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/ideas', label: 'Idea Lab', icon: Lightbulb },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/monthly-tasks', label: 'Monthly Tasks', icon: ClipboardList },
   { href: '/meetings', label: 'Meetings', icon: CalendarDays },

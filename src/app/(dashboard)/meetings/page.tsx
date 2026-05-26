@@ -16,8 +16,13 @@ const TYPES: { value: MeetingType; label: string; color: string }[] = [
   { value: 'discovery', label: 'Project Kickoff', color: 'bg-gold-500/20 text-gold-400' },
   { value: 'internal', label: 'Internal', color: 'bg-navy-600/80 text-cream-200/60' },
   { value: 'follow-up', label: 'Follow-up', color: 'bg-purple-500/20 text-purple-300' },
+  { value: 'board', label: 'Board / Leadership', color: 'bg-emerald-500/20 text-emerald-300' },
+  { value: 'training', label: 'Training', color: 'bg-orange-500/20 text-orange-300' },
+  { value: 'external', label: 'External', color: 'bg-cyan-500/20 text-cyan-300' },
   { value: 'other', label: 'Other', color: 'bg-navy-600/60 text-cream-200/40' },
 ]
+
+const ORGANIZATIONS = ['Goodwill Virginia', 'Board of Directors', 'External Auditors', 'Banking / Finance', 'Government / Regulatory', 'Vendor / Partner', 'Other']
 
 const STATUSES: { value: MeetingStatus; label: string }[] = [
   { value: 'scheduled', label: 'Scheduled' },
@@ -49,7 +54,7 @@ export default function MeetingsPage() {
   const [editing, setEditing] = useState<Meeting | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formAttendees, setFormAttendees] = useState<MeetingAttendee[]>([])
-  const [attendeeInput, setAttendeeInput] = useState({ name: '', position: '' })
+  const [attendeeInput, setAttendeeInput] = useState({ name: '', position: '', organization: 'Goodwill Virginia' })
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [newSeriesName, setNewSeriesName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -112,8 +117,12 @@ export default function MeetingsPage() {
       toast.error('Attendee already added')
       return
     }
-    setFormAttendees(prev => [...prev, { name, position: attendeeInput.position.trim() || null }])
-    setAttendeeInput({ name: '', position: '' })
+    setFormAttendees(prev => [...prev, {
+      name,
+      position: attendeeInput.position.trim() || null,
+      organization: attendeeInput.organization.trim() || null,
+    }])
+    setAttendeeInput({ name: '', position: '', organization: 'Goodwill Virginia' })
     setShowSuggestions(false)
     nameInputRef.current?.focus()
   }
@@ -123,7 +132,7 @@ export default function MeetingsPage() {
   }
 
   function selectSuggestion(a: SavedAttendee) {
-    setAttendeeInput({ name: a.name, position: a.position ?? '' })
+    setAttendeeInput({ name: a.name, position: a.position ?? '', organization: a.organization ?? 'Goodwill Virginia' })
     setShowSuggestions(false)
     setTimeout(() => nameInputRef.current?.focus(), 0)
   }
@@ -152,7 +161,9 @@ export default function MeetingsPage() {
     const existingNames = savedAttendees.map(a => a.name.toLowerCase())
     const newOnes = formAttendees.filter(a => !existingNames.includes(a.name.toLowerCase()))
     if (newOnes.length > 0) {
-      const { data: saved } = await supabase.from('saved_attendees').insert(newOnes.map(a => ({ name: a.name, position: a.position }))).select()
+      const { data: saved } = await supabase.from('saved_attendees').insert(
+        newOnes.map(a => ({ name: a.name, position: a.position, organization: a.organization }))
+      ).select()
       if (saved) setSavedAttendees(prev => [...prev, ...saved])
     }
 
@@ -445,7 +456,7 @@ export default function MeetingsPage() {
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {selected.attendees.map(a => (
                   <span key={a.name} className="text-[10px] bg-navy-700 border border-navy-600 text-cream-200/70 rounded-full px-2.5 py-1">
-                    {a.name}{a.position ? ` · ${a.position}` : ''}
+                    {a.name}{a.position ? ` · ${a.position}` : ''}{a.organization && a.organization !== 'Goodwill Virginia' ? ` · ${a.organization}` : ''}
                   </span>
                 ))}
               </div>
@@ -638,46 +649,65 @@ export default function MeetingsPage() {
                 <label className="block text-xs font-medium text-cream-200/60 mb-1.5 flex items-center gap-1">
                   <UserPlus className="w-3 h-3" /> Attendees
                 </label>
-                <div className="flex gap-2 mb-2 relative">
-                  <div className="flex-1 relative">
+                <div className="space-y-2 mb-2">
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <input
+                        ref={nameInputRef}
+                        value={attendeeInput.name}
+                        onChange={e => { setAttendeeInput(p => ({ ...p, name: e.target.value })); setShowSuggestions(true) }}
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAttendee())}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                        placeholder="Name"
+                        className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
+                      />
+                      {showSuggestions && attendeeSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-navy-700 border border-navy-500 rounded-lg overflow-hidden z-20 shadow-xl">
+                          {attendeeSuggestions.map(a => (
+                            <button key={a.id} onMouseDown={() => selectSuggestion(a)}
+                              className="w-full text-left px-3 py-2 text-sm text-cream-100 hover:bg-navy-600 transition-colors"
+                            >
+                              <span className="font-medium">{a.name}</span>
+                              <span className="text-[10px] text-cream-200/40 ml-2">
+                                {[a.position, a.organization].filter(Boolean).join(' · ')}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <input
-                      ref={nameInputRef}
-                      value={attendeeInput.name}
-                      onChange={e => { setAttendeeInput(p => ({ ...p, name: e.target.value })); setShowSuggestions(true) }}
+                      value={attendeeInput.position}
+                      onChange={e => setAttendeeInput(p => ({ ...p, position: e.target.value }))}
                       onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAttendee())}
-                      onFocus={() => setShowSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                      placeholder="Name"
-                      className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
+                      placeholder="Title / Role"
+                      className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
                     />
-                    {showSuggestions && attendeeSuggestions.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-navy-700 border border-navy-500 rounded-lg overflow-hidden z-20 shadow-xl">
-                        {attendeeSuggestions.map(a => (
-                          <button key={a.id} onMouseDown={() => selectSuggestion(a)}
-                            className="w-full text-left px-3 py-2 text-sm text-cream-100 hover:bg-navy-600 transition-colors flex items-center justify-between"
-                          >
-                            <span>{a.name}</span>
-                            {a.position && <span className="text-[10px] text-cream-200/40">{a.position}</span>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                  <input
-                    value={attendeeInput.position}
-                    onChange={e => setAttendeeInput(p => ({ ...p, position: e.target.value }))}
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAttendee())}
-                    placeholder="Title / Role"
-                    className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
-                  />
-                  <button onClick={addAttendee} className="bg-navy-600 hover:bg-navy-500 text-cream-100 px-3 py-2 rounded-lg text-xs transition-colors shrink-0">Add</button>
+                  <div className="flex gap-2">
+                    <select
+                      value={attendeeInput.organization}
+                      onChange={e => setAttendeeInput(p => ({ ...p, organization: e.target.value }))}
+                      className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 focus:border-gold-500 focus:outline-none"
+                    >
+                      {ORGANIZATIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <button onClick={addAttendee} className="bg-navy-600 hover:bg-navy-500 text-cream-100 px-4 py-2 rounded-lg text-xs font-medium transition-colors shrink-0">
+                      Add
+                    </button>
+                  </div>
                 </div>
                 {formAttendees.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {formAttendees.map(a => (
                       <span key={a.name} className="flex items-center gap-1.5 text-xs bg-navy-700 border border-navy-600 text-cream-200/80 rounded-full pl-3 pr-2 py-1">
-                        {a.name}{a.position ? ` · ${a.position}` : ''}
-                        <button onClick={() => removeAttendee(a.name)} className="text-cream-200/40 hover:text-red-400 transition-colors">
+                        <span>
+                          {a.name}
+                          {a.position && <span className="text-cream-200/50"> · {a.position}</span>}
+                          {a.organization && <span className="text-cream-200/40"> · {a.organization}</span>}
+                        </span>
+                        <button onClick={() => removeAttendee(a.name)} className="text-cream-200/40 hover:text-red-400 transition-colors ml-0.5">
                           <X className="w-3 h-3" />
                         </button>
                       </span>
