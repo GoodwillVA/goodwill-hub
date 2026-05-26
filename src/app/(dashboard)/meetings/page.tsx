@@ -1,0 +1,580 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Meeting, MeetingType, MeetingStatus, ActionItem, Contact, Project } from '@/lib/types'
+import { toast } from 'sonner'
+import {
+  Plus, X, CalendarDays, List, ChevronLeft, ChevronRight,
+  Clock, Users, FolderKanban, Upload, Sparkles, Copy,
+  CheckCircle2, Circle, Trash2, Pencil, ArrowRight
+} from 'lucide-react'
+import { formatDate, formatCurrency } from '@/lib/utils'
+
+const TYPES: { value: MeetingType; label: string; color: string }[] = [
+  { value: 'client-call', label: 'Client Call', color: 'bg-blue-500/20 text-blue-300' },
+  { value: 'discovery', label: 'Discovery', color: 'bg-gold-500/20 text-gold-400' },
+  { value: 'internal', label: 'Internal', color: 'bg-navy-600/80 text-cream-200/60' },
+  { value: 'follow-up', label: 'Follow-up', color: 'bg-purple-500/20 text-purple-300' },
+  { value: 'other', label: 'Other', color: 'bg-navy-600/60 text-cream-200/40' },
+]
+
+const STATUSES: { value: MeetingStatus; label: string }[] = [
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+]
+
+const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+const EMPTY_FORM = {
+  title: '', meeting_date: '', meeting_time: '', duration_minutes: '',
+  type: 'client-call' as MeetingType, contact_id: '', project_id: '',
+  notes: '', status: 'scheduled' as MeetingStatus,
+}
+
+export default function MeetingsPage() {
+  const supabase = createClient()
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [contacts, setContacts] = useState<Pick<Contact, 'id' | 'name' | 'company'>[]>([])
+  const [projects, setProjects] = useState<Pick<Project, 'id' | 'name'>[]>([])
+  const [selected, setSelected] = useState<Meeting | null>(null)
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [calDate, setCalDate] = useState(new Date())
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing] = useState<Meeting | null>(null)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
+  const [notesDraft, setNotesDraft] = useState('')
+  const [transcriptDraft, setTranscriptDraft] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
+  const [actionItems, setActionItems] = useState<ActionItem[]>([])
+  const [pushingToProject, setPushingToProject] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { load() }, [])
+  useEffect(() => {
+    setNotesDraft(selected?.notes ?? '')
+    setTranscriptDraft(selected?.transcript ?? '')
+    setActionItems(selected?.action_items ?? [])
+  }, [selected?.id])
+
+  async function load() {
+    const [{ data: m }, { data: c }, { data: p }] = await Promise.all([
+      supabase.from('meetings').select('*, contact:contacts(id,name,company), project:projects(id,name)').order('meeting_date', { ascending: false }),
+      supabase.from('contacts').select('id,name,company').order('name'),
+      supabase.from('projects').select('id,name').order('name'),
+    ])
+    setMeetings(m ?? [])
+    setContacts(c ?? [])
+    setProjects(p ?? [])
+  }
+
+  function openAdd() {
+    setEditing(null)
+    setForm({ ...EMPTY_FORM, meeting_date: new Date().toISOString().split('T')[0] })
+    setShowModal(true)
+  }
+
+  function openEdit(m: Meeting) {
+    setEditing(m)
+    setForm({
+      title: m.title, meeting_date: m.meeting_date, meeting_time: m.meeting_time ?? '',
+      duration_minutes: m.duration_minutes != null ? String(m.duration_minutes) : '',
+      type: m.type, contact_id: m.contact_id ?? '', project_id: m.project_id ?? '',
+      notes: m.notes ?? '', status: m.status,
+    })
+    setShowModal(true)
+  }
+
+  async function saveMeeting() {
+    if (!form.title.trim() || !form.meeting_date) { toast.error('Title and date are required'); return }
+    setSaving(true)
+    const payload = {
+      title: form.title.trim(),
+      meeting_date: form.meeting_date,
+      meeting_time: form.meeting_time || null,
+      duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes) : null,
+      type: form.type,
+      contact_id: form.contact_id || null,
+      project_id: form.project_id || null,
+      notes: form.notes || null,
+      status: form.status,
+    }
+    if (editing) {
+      const { data, error } = await supabase.from('meetings').update(payload).eq('id', editing.id)
+        .select('*, contact:contacts(id,name,company), project:projects(id,name)').single()
+      if (error) { toast.error('Failed to save'); setSaving(false); return }
+      setMeetings(prev => prev.map(m => m.id === editing.id ? { ...data, action_items: data.action_items ?? [] } : m))
+      if (selected?.id === editing.id) setSelected({ ...data, action_items: data.action_items ?? [] })
+      toast.success('Meeting updated')
+    } else {
+      const { data, error } = await supabase.from('meetings').insert(payload)
+        .select('*, contact:contacts(id,name,company), project:projects(id,name)').single()
+      if (error) { toast.error('Failed to save'); setSaving(false); return }
+      setMeetings(prev => [{ ...data, action_items: [] }, ...prev])
+      toast.success('Meeting added')
+    }
+    setSaving(false)
+    setShowModal(false)
+  }
+
+  async function deleteMeeting(id: string) {
+    await supabase.from('meetings').delete().eq('id', id)
+    setMeetings(prev => prev.filter(m => m.id !== id))
+    if (selected?.id === id) setSelected(null)
+    toast.success('Meeting deleted')
+  }
+
+  async function saveNotes() {
+    if (!selected) return
+    const trimmed = notesDraft.trim() || null
+    if (trimmed === selected.notes) return
+    await supabase.from('meetings').update({ notes: trimmed }).eq('id', selected.id)
+    const updated = { ...selected, notes: trimmed }
+    setMeetings(prev => prev.map(m => m.id === selected.id ? updated : m))
+    setSelected(updated)
+  }
+
+  async function saveTranscript() {
+    if (!selected) return
+    const trimmed = transcriptDraft.trim() || null
+    if (trimmed === selected.transcript) return
+    await supabase.from('meetings').update({ transcript: trimmed }).eq('id', selected.id)
+    const updated = { ...selected, transcript: trimmed }
+    setMeetings(prev => prev.map(m => m.id === selected.id ? updated : m))
+    setSelected(updated)
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.name.endsWith('.txt')) {
+      const text = await file.text()
+      setTranscriptDraft(text)
+      toast.success('Transcript loaded')
+    } else if (file.name.endsWith('.docx')) {
+      try {
+        const mammoth = (await import('mammoth')).default
+        const arrayBuffer = await file.arrayBuffer()
+        const result = await mammoth.extractRawText({ arrayBuffer })
+        setTranscriptDraft(result.value)
+        toast.success('Transcript loaded from DOCX')
+      } catch {
+        toast.error('Failed to read DOCX file')
+      }
+    } else {
+      toast.error('Please upload a .txt or .docx file')
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function analyzeTranscript() {
+    if (!selected || !transcriptDraft.trim()) { toast.error('Paste or upload a transcript first'); return }
+    setAnalyzing(true)
+    // Save transcript first
+    await supabase.from('meetings').update({ transcript: transcriptDraft.trim(), status: 'completed' }).eq('id', selected.id)
+
+    const context = [
+      selected.title,
+      selected.contact ? `Attendee: ${selected.contact.name}${selected.contact.company ? ` (${selected.contact.company})` : ''}` : '',
+      selected.project ? `Project: ${selected.project.name}` : '',
+      selected.meeting_date ? `Date: ${formatDate(selected.meeting_date)}` : '',
+    ].filter(Boolean).join('\n')
+
+    try {
+      const res = await fetch('/api/meetings/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: transcriptDraft.trim(), context }),
+      })
+      const data = await res.json()
+      if (data.error) { toast.error('Analysis failed'); setAnalyzing(false); return }
+
+      const items: ActionItem[] = (data.action_items ?? []).map((a: Omit<ActionItem, 'id' | 'done'>) => ({
+        ...a, id: crypto.randomUUID(), done: false,
+      }))
+
+      await supabase.from('meetings').update({
+        summary: data.summary ?? null,
+        action_items: items,
+        followup_email: data.followup_email ?? null,
+        status: 'completed',
+        transcript: transcriptDraft.trim(),
+      }).eq('id', selected.id)
+
+      const updated = { ...selected, summary: data.summary, action_items: items, followup_email: data.followup_email, status: 'completed' as MeetingStatus, transcript: transcriptDraft.trim() }
+      setMeetings(prev => prev.map(m => m.id === selected.id ? updated : m))
+      setSelected(updated)
+      setActionItems(items)
+      toast.success('Transcript analyzed')
+    } catch {
+      toast.error('Analysis request failed')
+    }
+    setAnalyzing(false)
+  }
+
+  async function toggleActionItem(item: ActionItem) {
+    if (!selected) return
+    const updated = actionItems.map(a => a.id === item.id ? { ...a, done: !a.done } : a)
+    setActionItems(updated)
+    await supabase.from('meetings').update({ action_items: updated }).eq('id', selected.id)
+    setSelected(prev => prev ? { ...prev, action_items: updated } : prev)
+  }
+
+  async function pushTasksToProject() {
+    if (!selected?.project_id || actionItems.length === 0) return
+    setPushingToProject(true)
+    const pending = actionItems.filter(a => !a.done)
+    const tasks = pending.map(a => ({
+      project_id: selected.project_id!,
+      title: a.owner ? `${a.owner}: ${a.title}` : a.title,
+      status: 'todo',
+      due_date: a.due_date ?? null,
+    }))
+    const { error } = await supabase.from('tasks').insert(tasks)
+    if (error) { toast.error('Failed to push tasks'); setPushingToProject(false); return }
+    toast.success(`${tasks.length} task${tasks.length !== 1 ? 's' : ''} added to project`, {
+      action: { label: 'View Projects', onClick: () => { window.location.href = '/projects' } },
+    })
+    setPushingToProject(false)
+  }
+
+  // Calendar helpers
+  const calYear = calDate.getFullYear()
+  const calMonth = calDate.getMonth()
+  const firstDay = new Date(calYear, calMonth, 1).getDay()
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate()
+  const today = new Date()
+
+  const meetingsByDay = meetings.reduce((acc, m) => {
+    const d = new Date(m.meeting_date + 'T00:00:00')
+    if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+      const day = d.getDate()
+      acc[day] = (acc[day] ?? 0) + 1
+    }
+    return acc
+  }, {} as Record<number, number>)
+
+  const calendarCells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
+  while (calendarCells.length % 7 !== 0) calendarCells.push(null)
+
+  const filteredMeetings = selectedDay && viewMode === 'calendar'
+    ? meetings.filter(m => {
+        const d = new Date(m.meeting_date + 'T00:00:00')
+        return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === selectedDay
+      })
+    : meetings
+
+  const typeObj = (t: MeetingType) => TYPES.find(x => x.value === t)!
+
+  return (
+    <div className="flex h-full">
+      {/* Left panel */}
+      <div className="w-72 shrink-0 border-r border-navy-600 flex flex-col h-full">
+        <div className="p-4 border-b border-navy-600">
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-base font-bold text-cream-100 flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-gold-500" /> Meetings
+            </h1>
+            <button onClick={openAdd} className="flex items-center gap-1 text-xs bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-2.5 py-1.5 rounded-lg transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Add
+            </button>
+          </div>
+          <div className="flex rounded-lg overflow-hidden border border-navy-600">
+            <button onClick={() => setViewMode('list')} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'list' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
+              <List className="w-3.5 h-3.5" /> List
+            </button>
+            <button onClick={() => setViewMode('calendar')} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'calendar' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
+              <CalendarDays className="w-3.5 h-3.5" /> Calendar
+            </button>
+          </div>
+        </div>
+
+        {/* Calendar grid */}
+        {viewMode === 'calendar' && (
+          <div className="p-3 border-b border-navy-600">
+            <div className="flex items-center justify-between mb-2">
+              <button onClick={() => setCalDate(new Date(calYear, calMonth - 1, 1))} className="text-cream-200/40 hover:text-cream-100 p-1 rounded transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+              <span className="text-xs font-semibold text-cream-100">{MONTHS[calMonth]} {calYear}</span>
+              <button onClick={() => setCalDate(new Date(calYear, calMonth + 1, 1))} className="text-cream-200/40 hover:text-cream-100 p-1 rounded transition-colors"><ChevronRight className="w-4 h-4" /></button>
+            </div>
+            <div className="grid grid-cols-7 mb-1">
+              {DAYS.map(d => <div key={d} className="text-[9px] font-medium text-cream-200/30 text-center py-0.5">{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-y-0.5">
+              {calendarCells.map((day, i) => {
+                if (!day) return <div key={i} />
+                const isToday = today.getDate() === day && today.getMonth() === calMonth && today.getFullYear() === calYear
+                const isSelected = selectedDay === day
+                const hasMeetings = !!meetingsByDay[day]
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedDay(isSelected ? null : day)}
+                    className={`relative flex flex-col items-center justify-center h-7 rounded text-xs font-medium transition-colors ${isSelected ? 'bg-gold-500 text-navy-900' : isToday ? 'bg-navy-600 text-cream-100' : 'text-cream-200/60 hover:bg-navy-700 hover:text-cream-100'}`}
+                  >
+                    {day}
+                    {hasMeetings && !isSelected && <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-gold-500" />}
+                    {hasMeetings && isSelected && <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-navy-900" />}
+                  </button>
+                )
+              })}
+            </div>
+            {selectedDay && (
+              <button onClick={() => setSelectedDay(null)} className="mt-2 text-[10px] text-cream-200/40 hover:text-cream-200/70 transition-colors">
+                Clear filter ×
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Meeting list */}
+        <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
+          {filteredMeetings.length === 0 && (
+            <li className="p-4 text-sm text-cream-200/40">No meetings{selectedDay ? ' on this day' : ''}.</li>
+          )}
+          {filteredMeetings.map(m => (
+            <li
+              key={m.id}
+              onClick={() => setSelected(m)}
+              className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
+            >
+              <div className="flex items-start justify-between gap-1">
+                <p className="text-sm text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{m.title}</p>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-1 text-[10px] text-cream-200/40">
+                <span>{formatDate(m.meeting_date)}</span>
+                {m.meeting_time && <span>{m.meeting_time.slice(0, 5)}</span>}
+                {m.contact && <span>· {(m.contact as { name: string }).name}</span>}
+                {m.summary && <span className="ml-auto">✓ AI</span>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Right panel */}
+      {selected ? (
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+          {/* Header */}
+          <div className="p-5 border-b border-navy-600 sticky top-0 bg-navy-900 z-10">
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <h2 className="text-lg font-bold text-cream-100 leading-snug">{selected.title}</h2>
+              <div className="flex gap-1 shrink-0">
+                <button onClick={() => openEdit(selected)} className="text-cream-200/40 hover:text-cream-100 p-1.5 rounded hover:bg-navy-700 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                <button onClick={() => deleteMeeting(selected.id)} className="text-cream-200/40 hover:text-red-400 p-1.5 rounded hover:bg-navy-700 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-cream-200/50">
+              <span className={`font-medium px-2 py-0.5 rounded ${typeObj(selected.type).color}`}>{typeObj(selected.type).label}</span>
+              <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDate(selected.meeting_date)}{selected.meeting_time ? ` · ${selected.meeting_time.slice(0, 5)}` : ''}{selected.duration_minutes ? ` · ${selected.duration_minutes}min` : ''}</span>
+              {selected.contact && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{(selected.contact as { name: string; company: string | null }).name}{selected.contact.company ? ` (${selected.contact.company})` : ''}</span>}
+              {selected.project && <span className="flex items-center gap-1"><FolderKanban className="w-3 h-3" />{(selected.project as { name: string }).name}</span>}
+            </div>
+          </div>
+
+          <div className="p-5 space-y-6">
+            {/* Pre-meeting notes */}
+            <section>
+              <label className="block text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-2">Pre-meeting Notes / Agenda</label>
+              <textarea
+                value={notesDraft}
+                onChange={e => setNotesDraft(e.target.value)}
+                onBlur={saveNotes}
+                placeholder="Agenda, talking points, questions to ask… (saves automatically)"
+                rows={3}
+                className="w-full bg-navy-700 border border-navy-600 rounded-xl text-sm text-cream-100 px-4 py-2.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-none transition-colors"
+              />
+            </section>
+
+            {/* Transcript */}
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Transcript</label>
+                <div className="flex items-center gap-2">
+                  <input ref={fileInputRef} type="file" accept=".txt,.docx" onChange={handleFileUpload} className="hidden" />
+                  <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-[10px] bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-2 py-1 rounded-lg transition-colors">
+                    <Upload className="w-3 h-3" /> Upload .txt / .docx
+                  </button>
+                </div>
+              </div>
+              <textarea
+                value={transcriptDraft}
+                onChange={e => setTranscriptDraft(e.target.value)}
+                onBlur={saveTranscript}
+                placeholder="Paste your meeting transcript here, or upload a file above…"
+                rows={6}
+                className="w-full bg-navy-700 border border-navy-600 rounded-xl text-sm text-cream-100 px-4 py-2.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-y transition-colors font-mono text-xs leading-relaxed"
+              />
+              {transcriptDraft.trim() && (
+                <button
+                  onClick={analyzeTranscript}
+                  disabled={analyzing}
+                  className="mt-3 w-full flex items-center justify-center gap-2 bg-gold-500 hover:bg-gold-400 disabled:opacity-60 text-navy-900 font-semibold text-sm py-2.5 rounded-xl transition-colors"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {analyzing ? 'Analyzing transcript…' : 'Analyze Transcript'}
+                </button>
+              )}
+            </section>
+
+            {/* AI Results */}
+            {selected.summary && (
+              <section>
+                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-2">AI Summary</p>
+                <div className="bg-navy-700 border border-navy-600 rounded-xl p-4 text-sm text-cream-100 leading-relaxed">
+                  {selected.summary}
+                </div>
+              </section>
+            )}
+
+            {actionItems.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Action Items</p>
+                  {selected.project_id && (
+                    <button
+                      onClick={pushTasksToProject}
+                      disabled={pushingToProject || actionItems.every(a => a.done)}
+                      className="flex items-center gap-1 text-[10px] bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 disabled:opacity-40 px-2 py-1 rounded-lg transition-colors"
+                    >
+                      <ArrowRight className="w-3 h-3" /> Push to Project
+                    </button>
+                  )}
+                </div>
+                <ul className="space-y-2">
+                  {actionItems.map(item => (
+                    <li key={item.id} className="flex items-start gap-3 p-3 bg-navy-700 rounded-xl border border-navy-600">
+                      <button onClick={() => toggleActionItem(item)} className="mt-0.5 shrink-0">
+                        {item.done
+                          ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          : <Circle className="w-4 h-4 text-cream-200/30 hover:text-cream-200/60" />
+                        }
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm ${item.done ? 'line-through text-cream-200/30' : 'text-cream-100'}`}>{item.title}</p>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          {item.owner && <span className="text-[10px] text-cream-200/40">{item.owner}</span>}
+                          {item.due_date && <span className="text-[10px] text-gold-400/70">{formatDate(item.due_date)}</span>}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {!selected.project_id && actionItems.some(a => !a.done) && (
+                  <p className="text-[10px] text-cream-200/30 mt-2">Link this meeting to a project to push action items as tasks.</p>
+                )}
+              </section>
+            )}
+
+            {selected.followup_email && (
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Follow-up Email Draft</p>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(selected.followup_email ?? ''); toast.success('Copied to clipboard') }}
+                    className="flex items-center gap-1 text-[10px] bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-2 py-1 rounded-lg transition-colors"
+                  >
+                    <Copy className="w-3 h-3" /> Copy
+                  </button>
+                </div>
+                <pre className="whitespace-pre-wrap font-sans text-sm text-cream-100 bg-navy-700 border border-navy-600 rounded-xl p-4 leading-relaxed">{selected.followup_email}</pre>
+              </section>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-cream-200/30">
+          <div className="text-center">
+            <CalendarDays className="w-10 h-10 mx-auto mb-3 text-gold-500/20" />
+            <p className="text-sm">Select a meeting or add a new one</p>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="bg-navy-800 border border-navy-600 rounded-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b border-navy-600">
+              <h2 className="font-bold text-cream-100">{editing ? 'Edit Meeting' : 'Add Meeting'}</h2>
+              <button onClick={() => setShowModal(false)}><X className="w-4 h-4 text-cream-200/50" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Title *</label>
+                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Discovery call with Acme Corp"
+                  className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Date *</label>
+                  <input type="date" value={form.meeting_date} onChange={e => setForm(f => ({ ...f, meeting_date: e.target.value }))}
+                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Time</label>
+                  <input type="time" value={form.meeting_time} onChange={e => setForm(f => ({ ...f, meeting_time: e.target.value }))}
+                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Type</label>
+                  <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as MeetingType }))}
+                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2">
+                    {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Duration (min)</label>
+                  <input type="number" value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: e.target.value }))} placeholder="60"
+                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Contact</label>
+                  <select value={form.contact_id} onChange={e => setForm(f => ({ ...f, contact_id: e.target.value }))}
+                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2">
+                    <option value="">— None —</option>
+                    {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Project</label>
+                  <select value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}
+                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2">
+                    <option value="">— None —</option>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Status</label>
+                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as MeetingStatus }))}
+                  className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2">
+                  {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 p-6 pt-0">
+              {editing && <button onClick={() => { deleteMeeting(editing.id); setShowModal(false) }} className="text-xs text-red-400 hover:text-red-300 transition-colors mr-auto">Delete</button>}
+              <button onClick={() => setShowModal(false)} className="flex-1 bg-navy-700 hover:bg-navy-600 text-cream-100 text-sm font-medium rounded-lg py-2.5 transition-colors">Cancel</button>
+              <button onClick={saveMeeting} disabled={saving} className="flex-1 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-navy-900 text-sm font-semibold rounded-lg py-2.5 transition-colors">
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

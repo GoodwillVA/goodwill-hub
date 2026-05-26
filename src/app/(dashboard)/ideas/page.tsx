@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Idea, IdeaCategory, IdeaStatus, ChatMessage } from '@/lib/types'
 import { toast } from 'sonner'
-import { Plus, Lightbulb, Send, Trash2, ChevronRight, Sparkles } from 'lucide-react'
+import { Plus, Lightbulb, Send, Trash2, ChevronRight, Sparkles, FolderKanban, Users, CheckSquare, Square, Archive, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 const CATEGORIES: { value: IdeaCategory; label: string }[] = [
@@ -34,10 +34,22 @@ export default function IdeasPage() {
   const [newCategory, setNewCategory] = useState<IdeaCategory>('other')
   const [chatInput, setChatInput] = useState('')
   const [streaming, setStreaming] = useState(false)
+  const [bodyDraft, setBodyDraft] = useState('')
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showConvertContact, setShowConvertContact] = useState(false)
+  const [convertName, setConvertName] = useState('')
+  const [convertCompany, setConvertCompany] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { loadIdeas() }, [])
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [selected?.ai_thread])
+  useEffect(() => {
+    setBodyDraft(selected?.body ?? '')
+    setShowConvertContact(false)
+    setConvertName('')
+    setConvertCompany('')
+  }, [selected?.id])
 
   async function loadIdeas() {
     const { data } = await supabase.from('ideas').select('*').order('created_at', { ascending: false })
@@ -73,17 +85,85 @@ export default function IdeasPage() {
     toast.success('Idea deleted')
   }
 
+  async function saveBody() {
+    if (!selected) return
+    const trimmed = bodyDraft.trim() || null
+    if (trimmed === selected.body) return
+    await supabase.from('ideas').update({ body: trimmed }).eq('id', selected.id)
+    const updated = { ...selected, body: trimmed }
+    setIdeas(prev => prev.map(i => i.id === selected.id ? updated : i))
+    setSelected(updated)
+  }
+
+  async function convertToProject() {
+    if (!selected) return
+    const { error } = await supabase.from('projects').insert({
+      name: selected.title,
+      description: selected.body || null,
+      status: 'scoping',
+    })
+    if (error) { toast.error('Failed to create project'); return }
+    toast.success('Project created', {
+      action: { label: 'View Projects', onClick: () => { window.location.href = '/projects' } },
+    })
+  }
+
+  async function convertToContact() {
+    if (!selected || !convertName.trim()) return
+    const notes = `Idea: ${selected.title}${selected.body ? '\n\n' + selected.body : ''}`
+    const { error } = await supabase.from('contacts').insert({
+      name: convertName.trim(),
+      company: convertCompany.trim() || null,
+      stage: 'discovery',
+      notes,
+    })
+    if (error) { toast.error('Failed to create contact'); return }
+    toast.success('Contact added to CRM', {
+      action: { label: 'View CRM', onClick: () => { window.location.href = '/crm' } },
+    })
+    setShowConvertContact(false)
+    setConvertName('')
+    setConvertCompany('')
+  }
+
+  function toggleSelectItem(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setSelectedIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+
+  async function bulkArchive() {
+    const ids = [...selectedIds]
+    await supabase.from('ideas').update({ status: 'shelved' }).in('id', ids)
+    setIdeas(prev => prev.map(i => selectedIds.has(i.id) ? { ...i, status: 'shelved' as IdeaStatus } : i))
+    if (selected && selectedIds.has(selected.id)) setSelected(prev => prev ? { ...prev, status: 'shelved' } : prev)
+    setSelectedIds(new Set())
+    setSelectMode(false)
+    toast.success(`${ids.length} idea${ids.length !== 1 ? 's' : ''} shelved`)
+  }
+
+  async function bulkDelete() {
+    const ids = [...selectedIds]
+    await supabase.from('ideas').delete().in('id', ids)
+    setIdeas(prev => prev.filter(i => !selectedIds.has(i.id)))
+    if (selected && selectedIds.has(selected.id)) setSelected(null)
+    setSelectedIds(new Set())
+    setSelectMode(false)
+    toast.success(`${ids.length} idea${ids.length !== 1 ? 's' : ''} deleted`)
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }
+
   async function sendMessage() {
     if (!selected || !chatInput.trim() || streaming) return
     const userMsg: ChatMessage = { role: 'user', content: chatInput.trim() }
     setChatInput('')
-
     const newThread = [...(selected.ai_thread ?? []), userMsg]
-    const thinking: ChatMessage = { role: 'assistant', content: '' }
-    const withThinking = { ...selected, ai_thread: [...newThread, thinking] }
+    const withThinking = { ...selected, ai_thread: [...newThread, { role: 'assistant' as const, content: '' }] }
     setSelected(withThinking)
     setStreaming(true)
-
     let fullText = ''
     try {
       const res = await fetch('/api/ideas/brainstorm', {
@@ -102,7 +182,6 @@ export default function IdeasPage() {
     } catch {
       toast.error('AI request failed')
     }
-
     const finalThread: ChatMessage[] = [...newThread, { role: 'assistant', content: fullText }]
     await supabase.from('ideas').update({ ai_thread: finalThread }).eq('id', selected.id)
     setIdeas(prev => prev.map(i => i.id === selected.id ? { ...i, ai_thread: finalThread } : i))
@@ -114,7 +193,6 @@ export default function IdeasPage() {
     (filterStatus === 'all' || i.status === filterStatus) &&
     (filterCategory === 'all' || i.category === filterCategory)
   )
-
   const statusObj = (s: IdeaStatus) => STATUSES.find(x => x.value === s)!
 
   return (
@@ -126,14 +204,21 @@ export default function IdeasPage() {
             <h1 className="text-base font-bold text-cream-100 flex items-center gap-2">
               <Lightbulb className="w-4 h-4 text-gold-500" /> Idea Lab
             </h1>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1 text-xs bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => { setSelectMode(v => !v); setSelectedIds(new Set()) }}
+                className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors ${selectMode ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100 hover:bg-navy-700'}`}
+              >
+                Select
+              </button>
+              <button
+                onClick={() => setShowAdd(true)}
+                className="flex items-center gap-1 text-xs bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add
+              </button>
+            </div>
           </div>
-          {/* Filters */}
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value as IdeaStatus | 'all')}
@@ -152,7 +237,6 @@ export default function IdeasPage() {
           </select>
         </div>
 
-        {/* Quick add */}
         {showAdd && (
           <div className="p-4 border-b border-navy-600 bg-navy-700">
             <input
@@ -177,60 +261,141 @@ export default function IdeasPage() {
           </div>
         )}
 
-        {/* List */}
         <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
           {filtered.length === 0 && (
             <li className="p-4 text-sm text-cream-200/40">No ideas match this filter.</li>
           )}
-          {filtered.map(idea => (
-            <li
-              key={idea.id}
-              onClick={() => setSelected(idea)}
-              className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === idea.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm text-cream-100 font-medium leading-snug line-clamp-2">{idea.title}</p>
-                <ChevronRight className="w-3.5 h-3.5 text-cream-200/30 shrink-0 mt-0.5" />
-              </div>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${statusObj(idea.status).color}`}>
-                  {statusObj(idea.status).label}
-                </span>
-                <span className="text-[10px] text-cream-200/30">{idea.ai_thread?.length ? '💬' : ''}</span>
-                <span className="text-[10px] text-cream-200/30 ml-auto">{formatDate(idea.created_at)}</span>
-              </div>
-            </li>
-          ))}
+          {filtered.map(idea => {
+            const isChecked = selectedIds.has(idea.id)
+            return (
+              <li
+                key={idea.id}
+                onClick={() => selectMode ? toggleSelectItem(idea.id, { stopPropagation: () => {} } as React.MouseEvent) : setSelected(idea)}
+                className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${!selectMode && selected?.id === idea.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''} ${selectMode && isChecked ? 'bg-navy-700/60' : ''}`}
+              >
+                <div className="flex items-start gap-2">
+                  {selectMode && (
+                    <span className="mt-0.5 shrink-0 text-cream-200/50">
+                      {isChecked ? <CheckSquare className="w-4 h-4 text-gold-500" /> : <Square className="w-4 h-4" />}
+                    </span>
+                  )}
+                  <p className="text-sm text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{idea.title}</p>
+                  {!selectMode && <ChevronRight className="w-3.5 h-3.5 text-cream-200/30 shrink-0 mt-0.5" />}
+                </div>
+                <div className={`flex items-center gap-2 mt-1.5 ${selectMode ? 'pl-6' : ''}`}>
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${statusObj(idea.status).color}`}>
+                    {statusObj(idea.status).label}
+                  </span>
+                  {idea.ai_thread?.length ? <span className="text-[10px] text-cream-200/30">💬</span> : null}
+                  {idea.body ? <span className="text-[10px] text-cream-200/30">📝</span> : null}
+                  <span className="text-[10px] text-cream-200/30 ml-auto">{formatDate(idea.created_at)}</span>
+                </div>
+              </li>
+            )
+          })}
         </ul>
+
+        {/* Bulk action bar */}
+        {selectMode && selectedIds.size > 0 && (
+          <div className="border-t border-navy-600 p-3 bg-navy-700 flex items-center gap-2">
+            <span className="text-xs text-cream-200/60 flex-1">{selectedIds.size} selected</span>
+            <button onClick={bulkArchive} className="flex items-center gap-1 text-xs bg-navy-600 hover:bg-navy-500 text-cream-100 px-2.5 py-1.5 rounded-lg transition-colors">
+              <Archive className="w-3 h-3" /> Shelve
+            </button>
+            <button onClick={bulkDelete} className="flex items-center gap-1 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2.5 py-1.5 rounded-lg transition-colors">
+              <Trash2 className="w-3 h-3" /> Delete
+            </button>
+            <button onClick={exitSelectMode} className="text-cream-200/40 hover:text-cream-100 p-1 transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Right panel */}
       {selected ? (
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Idea header */}
-          <div className="p-6 border-b border-navy-600 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h2 className="text-lg font-bold text-cream-100 mb-2">{selected.title}</h2>
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs text-cream-200/50 bg-navy-700 rounded px-2 py-0.5">
-                  {CATEGORIES.find(c => c.value === selected.category)?.label}
-                </span>
-                <select
-                  value={selected.status}
-                  onChange={e => updateStatus(selected, e.target.value as IdeaStatus)}
-                  className="text-xs bg-navy-700 border border-navy-600 rounded px-2 py-0.5 text-cream-100"
+          {/* Header */}
+          <div className="p-5 border-b border-navy-600">
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <h2 className="text-lg font-bold text-cream-100 leading-snug">{selected.title}</h2>
+              <button onClick={() => deleteIdea(selected.id)} className="text-cream-200/30 hover:text-red-400 transition-colors shrink-0">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-cream-200/50 bg-navy-700 rounded px-2 py-0.5">
+                {CATEGORIES.find(c => c.value === selected.category)?.label}
+              </span>
+              <select
+                value={selected.status}
+                onChange={e => updateStatus(selected, e.target.value as IdeaStatus)}
+                className="text-xs bg-navy-700 border border-navy-600 rounded px-2 py-0.5 text-cream-100"
+              >
+                {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <div className="flex items-center gap-1.5 ml-auto">
+                <button
+                  onClick={convertToProject}
+                  className="flex items-center gap-1 text-xs bg-navy-700 hover:bg-navy-600 border border-navy-500 text-cream-200/70 hover:text-cream-100 px-2.5 py-1 rounded-lg transition-colors"
                 >
-                  {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
+                  <FolderKanban className="w-3 h-3" /> → Project
+                </button>
+                <button
+                  onClick={() => setShowConvertContact(v => !v)}
+                  className={`flex items-center gap-1 text-xs border px-2.5 py-1 rounded-lg transition-colors ${showConvertContact ? 'bg-navy-600 border-gold-500/40 text-cream-100' : 'bg-navy-700 hover:bg-navy-600 border-navy-500 text-cream-200/70 hover:text-cream-100'}`}
+                >
+                  <Users className="w-3 h-3" /> → Contact
+                </button>
               </div>
             </div>
-            <button onClick={() => deleteIdea(selected.id)} className="text-cream-200/30 hover:text-red-400 transition-colors">
-              <Trash2 className="w-4 h-4" />
-            </button>
+
+            {/* Convert to contact mini-form */}
+            {showConvertContact && (
+              <div className="mt-3 p-3 bg-navy-700 rounded-xl border border-navy-500 space-y-2">
+                <p className="text-[10px] text-cream-200/40 uppercase tracking-wider font-medium">Add to CRM as Discovery lead</p>
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    value={convertName}
+                    onChange={e => setConvertName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && convertToContact()}
+                    placeholder="Contact name *"
+                    className="flex-1 bg-navy-800 border border-navy-600 rounded-lg text-xs text-cream-100 px-3 py-1.5 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
+                  />
+                  <input
+                    value={convertCompany}
+                    onChange={e => setConvertCompany(e.target.value)}
+                    placeholder="Company"
+                    className="flex-1 bg-navy-800 border border-navy-600 rounded-lg text-xs text-cream-100 px-3 py-1.5 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={convertToContact}
+                    disabled={!convertName.trim()}
+                    className="bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-navy-900 font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div className="px-5 py-4 border-b border-navy-600">
+            <label className="block text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-2">Notes</label>
+            <textarea
+              value={bodyDraft}
+              onChange={e => setBodyDraft(e.target.value)}
+              onBlur={saveBody}
+              placeholder="Add context, research, details… (saves automatically)"
+              rows={3}
+              className="w-full bg-navy-700 border border-navy-600 rounded-xl text-sm text-cream-100 px-4 py-2.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-none transition-colors"
+            />
           </div>
 
           {/* Chat */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {(!selected.ai_thread || selected.ai_thread.length === 0) && (
               <div className="flex flex-col items-center justify-center h-full text-center text-cream-200/40">
                 <Sparkles className="w-8 h-8 mb-3 text-gold-500/40" />
@@ -245,18 +410,17 @@ export default function IdeasPage() {
                     ? 'bg-gold-500/20 text-cream-100 rounded-tr-sm'
                     : 'bg-navy-700 text-cream-100 rounded-tl-sm border border-navy-600'
                 }`}>
-                  {msg.role === 'assistant' ? (
-                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content || '…'}</pre>
-                  ) : (
-                    <p>{msg.content}</p>
-                  )}
+                  {msg.role === 'assistant'
+                    ? <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content || '…'}</pre>
+                    : <p>{msg.content}</p>
+                  }
                 </div>
               </div>
             ))}
             <div ref={chatEndRef} />
           </div>
 
-          {/* Input */}
+          {/* Chat input */}
           <div className="p-4 border-t border-navy-600">
             <div className="flex gap-3">
               <input

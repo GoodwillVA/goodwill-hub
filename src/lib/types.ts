@@ -58,6 +58,37 @@ export interface Task {
   created_at: string
 }
 
+export type MeetingType = 'client-call' | 'discovery' | 'internal' | 'follow-up' | 'other'
+export type MeetingStatus = 'scheduled' | 'completed' | 'cancelled'
+
+export interface ActionItem {
+  id: string
+  title: string
+  owner: string | null
+  due_date: string | null
+  done: boolean
+}
+
+export interface Meeting {
+  id: string
+  title: string
+  meeting_date: string
+  meeting_time: string | null
+  duration_minutes: number | null
+  type: MeetingType
+  contact_id: string | null
+  project_id: string | null
+  notes: string | null
+  transcript: string | null
+  summary: string | null
+  action_items: ActionItem[]
+  followup_email: string | null
+  status: MeetingStatus
+  created_at: string
+  contact?: { id: string; name: string; company: string | null }
+  project?: { id: string; name: string }
+}
+
 export interface ContentItem {
   id: string
   title: string
