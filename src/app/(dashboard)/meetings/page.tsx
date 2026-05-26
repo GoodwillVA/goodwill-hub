@@ -90,7 +90,7 @@ export default function MeetingsPage() {
     setEditing(null)
     setForm({ ...EMPTY_FORM, meeting_date: new Date().toISOString().split('T')[0] })
     setFormAttendees([])
-    setAttendeeInput({ name: '', position: '' })
+    setAttendeeInput({ name: '', position: '', organization: 'Goodwill Virginia' })
     setNewSeriesName('')
     setShowModal(true)
   }
@@ -105,7 +105,7 @@ export default function MeetingsPage() {
       series_id: m.series_id ?? '',
     })
     setFormAttendees(m.attendees ?? [])
-    setAttendeeInput({ name: '', position: '' })
+    setAttendeeInput({ name: '', position: '', organization: 'Goodwill Virginia' })
     setNewSeriesName('')
     setShowModal(true)
   }
