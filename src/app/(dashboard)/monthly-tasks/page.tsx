@@ -296,17 +296,17 @@ export default function MonthlyTasksPage() {
 
               {/* Expanded body */}
               {isExpanded && (
-                <div className="px-5 pb-5 border-t border-navy-600">
+                <div className="px-6 pb-6 border-t border-navy-600">
                   {/* Full progress bar for active month */}
                   {isActive && total > 0 && (
-                    <div className="flex items-center gap-3 pt-4 mb-4">
-                      <div className="flex-1 h-2 bg-navy-600 rounded-full overflow-hidden">
+                    <div className="flex items-center gap-3 pt-5 mb-5">
+                      <div className="flex-1 h-2.5 bg-navy-600 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-gold-500'}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="text-xs text-cream-200/60 shrink-0 font-medium tabular-nums">
+                      <span className="text-sm text-cream-200/60 shrink-0 font-medium tabular-nums">
                         {completed}/{total}
                       </span>
                     </div>
@@ -314,26 +314,26 @@ export default function MonthlyTasksPage() {
 
                   {/* Task list */}
                   {tasks.length === 0 ? (
-                    <p className="text-cream-200/30 text-sm pt-4 mb-4">No tasks yet — add one below.</p>
+                    <p className="text-cream-200/30 text-sm pt-5 mb-4">No tasks yet — add one below.</p>
                   ) : (
-                    <ul className={`space-y-0.5 ${isActive && total > 0 ? '' : 'pt-4'} mb-3`}>
+                    <ul className={`space-y-1 ${isActive && total > 0 ? '' : 'pt-5'} mb-4`}>
                       {tasks.map(task => (
                         <li
                           key={task.id}
-                          className={`group flex items-center gap-2.5 py-2 px-2 rounded-lg transition-colors ${
+                          className={`group flex items-center gap-3 py-3 px-3 rounded-lg transition-colors ${
                             task.completed ? '' : 'hover:bg-navy-700/50'
                           }`}
                         >
                           {/* Checkbox */}
                           <button
                             onClick={() => toggleTask(task)}
-                            className={`w-4 h-4 shrink-0 rounded border-2 transition-colors flex items-center justify-center ${
+                            className={`w-5 h-5 shrink-0 rounded border-2 transition-colors flex items-center justify-center ${
                               task.completed
                                 ? 'bg-emerald-500 border-emerald-500'
                                 : 'border-cream-200/25 hover:border-gold-400'
                             }`}
                           >
-                            {task.completed && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                            {task.completed && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                           </button>
 
                           {/* Title */}
@@ -345,7 +345,7 @@ export default function MonthlyTasksPage() {
 
                           {/* Due date */}
                           {task.due_date && (
-                            <span className={`text-[11px] shrink-0 ${
+                            <span className={`text-xs shrink-0 ${
                               !task.completed && isOverdue(task.due_date)
                                 ? 'text-red-400 font-medium'
                                 : 'text-cream-200/35'
@@ -364,7 +364,7 @@ export default function MonthlyTasksPage() {
                                 : 'text-cream-200/0 group-hover:text-cream-200/25 hover:!text-gold-400'
                             }`}
                           >
-                            <RefreshCw className="w-3 h-3" />
+                            <RefreshCw className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Delete */}
@@ -372,7 +372,7 @@ export default function MonthlyTasksPage() {
                             onClick={() => deleteTask(task)}
                             className="shrink-0 text-cream-200/0 group-hover:text-cream-200/25 hover:!text-red-400 transition-colors"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </li>
                       ))}
@@ -381,7 +381,7 @@ export default function MonthlyTasksPage() {
 
                   {/* Add task form / button */}
                   {isAddingTask ? (
-                    <div className="bg-navy-700/50 rounded-lg p-3 space-y-2 mt-2">
+                    <div className="bg-navy-700/50 rounded-lg p-4 space-y-3 mt-2">
                       <input
                         autoFocus
                         type="text"
@@ -392,39 +392,39 @@ export default function MonthlyTasksPage() {
                           if (e.key === 'Enter') addTask(month)
                           if (e.key === 'Escape') setShowAddTask(prev => ({ ...prev, [month]: false }))
                         }}
-                        className="w-full bg-navy-700 border border-navy-500 rounded-lg px-3 py-2 text-sm text-cream-100 placeholder-cream-200/30 focus:outline-none focus:border-gold-500/50"
+                        className="w-full bg-navy-700 border border-navy-500 rounded-lg px-3 py-2.5 text-sm text-cream-100 placeholder-cream-200/30 focus:outline-none focus:border-gold-500/50"
                       />
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-cream-200/35 shrink-0" />
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-cream-200/35 shrink-0" />
                           <input
                             type="date"
                             value={newDueDate[month] ?? ''}
                             onChange={e => setNewDueDate(prev => ({ ...prev, [month]: e.target.value }))}
-                            className="bg-navy-700 border border-navy-500 rounded px-2 py-1 text-xs text-cream-100 focus:outline-none focus:border-gold-500/50 [color-scheme:dark]"
+                            className="bg-navy-700 border border-navy-500 rounded px-2.5 py-1.5 text-sm text-cream-100 focus:outline-none focus:border-gold-500/50 [color-scheme:dark]"
                           />
                         </div>
-                        <label className="flex items-center gap-1.5 text-xs text-cream-200/50 cursor-pointer select-none">
+                        <label className="flex items-center gap-2 text-sm text-cream-200/50 cursor-pointer select-none">
                           <input
                             type="checkbox"
                             checked={newRecurring[month] ?? false}
                             onChange={e => setNewRecurring(prev => ({ ...prev, [month]: e.target.checked }))}
                             className="accent-gold-500"
                           />
-                          <RefreshCw className="w-3 h-3" />
+                          <RefreshCw className="w-3.5 h-3.5" />
                           Recurring
                         </label>
                         <div className="flex gap-2 ml-auto">
                           <button
                             onClick={() => setShowAddTask(prev => ({ ...prev, [month]: false }))}
-                            className="px-2 py-1 text-xs text-cream-200/50 hover:text-cream-100 transition-colors"
+                            className="px-3 py-1.5 text-sm text-cream-200/50 hover:text-cream-100 transition-colors"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={() => addTask(month)}
                             disabled={!(newTitle[month] ?? '').trim()}
-                            className="px-3 py-1 bg-gold-500 text-navy-900 rounded text-xs font-medium hover:bg-gold-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            className="px-4 py-1.5 bg-gold-500 text-navy-900 rounded text-sm font-medium hover:bg-gold-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                           >
                             Add
                           </button>
@@ -434,9 +434,9 @@ export default function MonthlyTasksPage() {
                   ) : (
                     <button
                       onClick={() => setShowAddTask(prev => ({ ...prev, [month]: true }))}
-                      className="flex items-center gap-2 text-sm text-cream-200/35 hover:text-gold-400 transition-colors mt-1"
+                      className="flex items-center gap-2 text-sm text-cream-200/35 hover:text-gold-400 transition-colors mt-2"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-4 h-4" />
                       Add task
                     </button>
                   )}
