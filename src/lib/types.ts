@@ -141,6 +141,37 @@ export interface MonthlyTask {
   created_at: string
 }
 
+export type GoalStatus = 'not_started' | 'in_progress' | 'completed' | 'at_risk'
+
+export interface TeamMember {
+  id: string
+  name: string
+  title: string | null
+  notes: string | null
+  ai_thread: ChatMessage[]
+  sort_order: number
+  created_at: string
+}
+
+export interface TeamMemberLog {
+  id: string
+  member_id: string
+  content: string
+  log_date: string
+  created_at: string
+}
+
+export interface TeamMemberGoal {
+  id: string
+  member_id: string
+  title: string
+  period: string
+  status: GoalStatus
+  notes: string | null
+  sort_order: number
+  created_at: string
+}
+
 export interface DayFocusItem {
   id: string
   focus_date: string          // 'YYYY-MM-DD'

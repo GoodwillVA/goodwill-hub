@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, FolderKanban, CalendarDays, ClipboardList, LogOut } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, CalendarDays, ClipboardList, Users, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
@@ -10,6 +10,7 @@ const NAV = [
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/monthly-tasks', label: 'Monthly Tasks', icon: ClipboardList },
   { href: '/meetings', label: 'Meetings', icon: CalendarDays },
+  { href: '/accounting-team', label: 'Accounting Team', icon: Users },
 ]
 
 export default function Sidebar({ userEmail }: { userEmail: string }) {
