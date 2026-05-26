@@ -37,7 +37,7 @@ export default async function DashboardPage() {
     { data: upcomingMeetings },
   ] = await Promise.all([
     supabase.from('ideas').select('*').order('created_at', { ascending: false }),
-    supabase.from('projects').select('id, name, status, due_date, area').order('due_date', { ascending: true, nullsFirst: false }),
+    supabase.from('projects').select('*').order('due_date', { ascending: true, nullsFirst: false }),
     supabase.from('monthly_tasks').select('*').eq('month_year', activeMonthStr).order('sort_order', { ascending: true }),
     supabase.from('meetings').select('id, title, meeting_date, meeting_time, type').gte('meeting_date', todayStr).neq('status', 'cancelled').order('meeting_date', { ascending: true }).limit(5),
   ])
