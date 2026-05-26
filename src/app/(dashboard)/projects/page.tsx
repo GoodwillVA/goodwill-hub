@@ -30,7 +30,7 @@ export default function ProjectsPage() {
     const [{ data: projs }, { data: tasks }, { data: meetings }] = await Promise.all([
       supabase.from('projects').select('*').order('created_at', { ascending: false }),
       supabase.from('tasks').select('*').order('created_at', { ascending: true }),
-      supabase.from('meetings').select('id, title, meeting_date, meeting_time, summary, attendees, project_id').order('meeting_date', { ascending: false }),
+      supabase.from('meetings').select('*').order('meeting_date', { ascending: false }),
     ])
     const projectsWithData = (projs ?? []).map((p: Project) => ({
       ...p,
