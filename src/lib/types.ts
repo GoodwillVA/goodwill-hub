@@ -4,7 +4,7 @@ export type ContactStage = 'discovery' | 'proposal' | 'active' | 'complete' | 'l
 export type ProjectStatus = 'scoping' | 'in-progress' | 'review' | 'delivered'
 export type ContentType = 'linkedin' | 'blog' | 'email' | 'other'
 export type ContentStatus = 'idea' | 'draft' | 'scheduled' | 'published'
-export type MeetingType = 'client-call' | 'discovery' | 'internal' | 'follow-up' | 'board' | 'training' | 'external' | 'other'
+export type MeetingType = 'client-call' | 'discovery' | 'internal' | 'follow-up' | 'board' | 'training' | 'external' | 'other' | 'team' | '1-1'
 export type MeetingStatus = 'scheduled' | 'completed' | 'cancelled'
 
 export interface ChatMessage {
@@ -143,11 +143,26 @@ export interface MonthlyTask {
 
 export type GoalStatus = 'not_started' | 'in_progress' | 'completed' | 'at_risk'
 
+export interface AgendaItem {
+  id: string
+  title: string
+  done: boolean
+}
+
+export interface PendingAsk {
+  id: string
+  title: string
+  resolved: boolean
+}
+
 export interface TeamMember {
   id: string
   name: string
   title: string | null
   notes: string | null
+  status_draft: string | null
+  agenda_items: AgendaItem[]
+  pending_asks: PendingAsk[]
   ai_thread: ChatMessage[]
   sort_order: number
   created_at: string

@@ -19,6 +19,8 @@ const TYPES: { value: MeetingType; label: string; color: string }[] = [
   { value: 'board', label: 'Leadership', color: 'bg-emerald-500/20 text-emerald-300' },
   { value: 'training', label: 'Training', color: 'bg-orange-500/20 text-orange-300' },
   { value: 'external', label: 'External', color: 'bg-cyan-500/20 text-cyan-300' },
+  { value: 'team', label: 'Team Meeting', color: 'bg-blue-500/20 text-blue-300' },
+  { value: '1-1', label: '1:1', color: 'bg-purple-500/20 text-purple-300' },
   { value: 'other', label: 'Other', color: 'bg-navy-600/60 text-cream-200/40' },
 ]
 
