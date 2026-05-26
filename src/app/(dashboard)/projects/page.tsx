@@ -2,54 +2,53 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Project, Task, Contact, ProjectStatus } from '@/lib/types'
+import { Project, Task, Meeting } from '@/lib/types'
 import { toast } from 'sonner'
-import { Plus, X, FolderKanban, CheckCircle2, Circle, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
-import { formatCurrency, formatDate, isOverdue, isDueSoon } from '@/lib/utils'
+import { Plus, X, FolderKanban, CheckCircle2, Circle, Trash2, ChevronDown, ChevronUp, CalendarDays, ArrowRight } from 'lucide-react'
+import { formatDate, isOverdue, isDueSoon } from '@/lib/utils'
 
-const STATUSES: { value: ProjectStatus; label: string; color: string }[] = [
-  { value: 'scoping', label: 'Scoping', color: 'bg-blue-500/20 text-blue-300' },
-  { value: 'in-progress', label: 'In Progress', color: 'bg-gold-500/20 text-gold-400' },
-  { value: 'review', label: 'In Review', color: 'bg-purple-500/20 text-purple-300' },
-  { value: 'delivered', label: 'Delivered', color: 'bg-emerald-500/20 text-emerald-400' },
-]
+const AREAS = ['Accounting', 'Finance', 'Audit', 'IT & Systems', 'Operations', 'HR', 'Other']
 
-const EMPTY_FORM = { name: '', description: '', contact_id: '', status: 'scoping' as ProjectStatus, start_date: '', due_date: '', value: '' }
+const EMPTY_FORM = { name: '', description: '', area: '', start_date: '', due_date: '' }
+
+type ProjectTab = 'tasks' | 'meetings'
 
 export default function ProjectsPage() {
   const supabase = createClient()
-  const [projects, setProjects] = useState<(Project & { tasks: Task[]; contact: Contact | null })[]>([])
-  const [contacts, setContacts] = useState<Pick<Contact, 'id' | 'name' | 'company'>[]>([])
+  const [projects, setProjects] = useState<(Project & { tasks: Task[]; meetings: Pick<Meeting, 'id' | 'title' | 'meeting_date' | 'meeting_time' | 'summary' | 'attendees'>[] })[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [activeTabs, setActiveTabs] = useState<Record<string, ProjectTab>>({})
   const [newTaskText, setNewTaskText] = useState<Record<string, string>>({})
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: projs }, { data: tasks }, { data: conts }] = await Promise.all([
-      supabase.from('projects').select('*, contact:contacts(*)').order('created_at', { ascending: false }),
+    const [{ data: projs }, { data: tasks }, { data: meetings }] = await Promise.all([
+      supabase.from('projects').select('*').order('created_at', { ascending: false }),
       supabase.from('tasks').select('*').order('created_at', { ascending: true }),
-      supabase.from('contacts').select('id,name,company').order('name'),
+      supabase.from('meetings').select('id, title, meeting_date, meeting_time, summary, attendees, project_id').order('meeting_date', { ascending: false }),
     ])
-    const projectsWithTasks = (projs ?? []).map((p: Project & { contact: Contact | null }) => ({
+    const projectsWithData = (projs ?? []).map((p: Project) => ({
       ...p,
       tasks: (tasks ?? []).filter((t: Task) => t.project_id === p.id),
+      meetings: (meetings ?? []).filter((m: Meeting & { project_id: string | null }) => m.project_id === p.id),
     }))
-    setProjects(projectsWithTasks)
-    setContacts(conts ?? [])
+    setProjects(projectsWithData)
   }
 
   function openAdd() { setEditing(null); setForm(EMPTY_FORM); setShowModal(true) }
   function openEdit(p: Project) {
     setEditing(p)
     setForm({
-      name: p.name, description: p.description ?? '', contact_id: p.contact_id ?? '',
-      status: p.status, start_date: p.start_date ?? '', due_date: p.due_date ?? '',
-      value: p.value != null ? String(p.value) : '',
+      name: p.name,
+      description: p.description ?? '',
+      area: p.area ?? '',
+      start_date: p.start_date ?? '',
+      due_date: p.due_date ?? '',
     })
     setShowModal(true)
   }
@@ -60,21 +59,22 @@ export default function ProjectsPage() {
     const payload = {
       name: form.name.trim(),
       description: form.description || null,
-      contact_id: form.contact_id || null,
-      status: form.status,
+      area: form.area || null,
       start_date: form.start_date || null,
       due_date: form.due_date || null,
-      value: form.value ? parseFloat(form.value) : null,
+      status: editing?.status ?? 'scoping',
+      contact_id: null,
+      value: null,
     }
     if (editing) {
-      const { data, error } = await supabase.from('projects').update(payload).eq('id', editing.id).select('*, contact:contacts(*)').single()
+      const { data, error } = await supabase.from('projects').update(payload).eq('id', editing.id).select().single()
       if (error) { toast.error('Failed to save'); setSaving(false); return }
-      setProjects(prev => prev.map(p => p.id === editing.id ? { ...data, tasks: p.tasks } : p))
+      setProjects(prev => prev.map(p => p.id === editing.id ? { ...data, tasks: p.tasks, meetings: p.meetings } : p))
       toast.success('Project updated')
     } else {
-      const { data, error } = await supabase.from('projects').insert(payload).select('*, contact:contacts(*)').single()
+      const { data, error } = await supabase.from('projects').insert(payload).select().single()
       if (error) { toast.error('Failed to save'); setSaving(false); return }
-      setProjects(prev => [{ ...data, tasks: [] }, ...prev])
+      setProjects(prev => [{ ...data, tasks: [], meetings: [] }, ...prev])
       toast.success('Project created')
     }
     setSaving(false)
@@ -117,12 +117,16 @@ export default function ProjectsPage() {
     setExpanded(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
   }
 
-  const statusObj = (s: ProjectStatus) => STATUSES.find(x => x.value === s)!
+  function setTab(projectId: string, tab: ProjectTab) {
+    setActiveTabs(prev => ({ ...prev, [projectId]: tab }))
+  }
 
   return (
     <div className="p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-cream-100 flex items-center gap-2"><FolderKanban className="w-5 h-5 text-gold-500" /> Projects</h1>
+        <h1 className="text-xl font-bold text-cream-100 flex items-center gap-2">
+          <FolderKanban className="w-5 h-5 text-gold-500" /> Projects
+        </h1>
         <button onClick={openAdd} className="flex items-center gap-1.5 bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">
           <Plus className="w-4 h-4" /> New Project
         </button>
@@ -134,8 +138,9 @@ export default function ProjectsPage() {
           const doneTasks = project.tasks.filter(t => t.status === 'done').length
           const pct = project.tasks.length ? Math.round((doneTasks / project.tasks.length) * 100) : 0
           const isOpen = expanded.has(project.id)
-          const dueSoon = isDueSoon(project.due_date ?? undefined)
           const overdue = isOverdue(project.due_date ?? undefined) && project.status !== 'delivered'
+          const dueSoon = isDueSoon(project.due_date ?? undefined) && !overdue
+          const activeTab = activeTabs[project.id] ?? 'tasks'
 
           return (
             <div key={project.id} className={`bg-navy-800 border rounded-xl overflow-hidden ${overdue ? 'border-red-500/40' : dueSoon ? 'border-gold-500/30' : 'border-navy-600'}`}>
@@ -143,13 +148,18 @@ export default function ProjectsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-sm font-bold text-cream-100">{project.name}</h3>
-                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${statusObj(project.status).color}`}>{statusObj(project.status).label}</span>
+                    {project.area && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-navy-600 text-cream-200/60">{project.area}</span>
+                    )}
                     {overdue && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">Overdue</span>}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-cream-200/40 flex-wrap">
-                    {project.contact && <span>{(project.contact as Contact).name}</span>}
-                    {project.value && <span className="text-gold-400/70">{formatCurrency(project.value)}</span>}
                     {project.due_date && <span className={overdue ? 'text-red-400' : ''}>Due {formatDate(project.due_date)}</span>}
+                    {project.meetings.length > 0 && (
+                      <span className="flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3" />{project.meetings.length} meeting{project.meetings.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
                   {project.tasks.length > 0 && (
                     <div className="mt-2 flex items-center gap-2">
@@ -169,33 +179,92 @@ export default function ProjectsPage() {
               </div>
 
               {isOpen && (
-                <div className="border-t border-navy-600 px-4 py-3">
-                  {project.description && <p className="text-sm text-cream-200/60 mb-3">{project.description}</p>}
-                  <ul className="space-y-1 mb-3">
-                    {project.tasks.map(task => (
-                      <li key={task.id} className="flex items-center gap-2 group">
-                        <button onClick={() => toggleTask(project.id, task)} className="shrink-0">
-                          {task.status === 'done'
-                            ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                            : <Circle className="w-4 h-4 text-cream-200/30 hover:text-cream-200/60" />
-                          }
-                        </button>
-                        <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-cream-200/30' : 'text-cream-100'}`}>{task.title}</span>
-                        <button onClick={() => deleteTask(project.id, task.id)} className="opacity-0 group-hover:opacity-100 text-cream-200/30 hover:text-red-400 transition-all">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="flex gap-2">
-                    <input
-                      value={newTaskText[project.id] ?? ''}
-                      onChange={e => setNewTaskText(prev => ({ ...prev, [project.id]: e.target.value }))}
-                      onKeyDown={e => e.key === 'Enter' && addTask(project.id)}
-                      placeholder="Add a task…"
-                      className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-xs text-cream-100 px-3 py-1.5 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
-                    />
-                    <button onClick={() => addTask(project.id)} className="text-xs bg-navy-600 hover:bg-navy-500 text-cream-100 rounded-lg px-3 py-1.5 transition-colors">Add</button>
+                <div className="border-t border-navy-600">
+                  {/* Tabs */}
+                  <div className="flex border-b border-navy-600">
+                    <button
+                      onClick={() => setTab(project.id, 'tasks')}
+                      className={`px-4 py-2 text-xs font-medium transition-colors ${activeTab === 'tasks' ? 'text-gold-400 border-b-2 border-gold-500 -mb-px' : 'text-cream-200/50 hover:text-cream-100'}`}
+                    >
+                      Tasks {project.tasks.length > 0 && `(${doneTasks}/${project.tasks.length})`}
+                    </button>
+                    <button
+                      onClick={() => setTab(project.id, 'meetings')}
+                      className={`px-4 py-2 text-xs font-medium transition-colors ${activeTab === 'meetings' ? 'text-gold-400 border-b-2 border-gold-500 -mb-px' : 'text-cream-200/50 hover:text-cream-100'}`}
+                    >
+                      Meetings {project.meetings.length > 0 && `(${project.meetings.length})`}
+                    </button>
+                  </div>
+
+                  <div className="px-4 py-3">
+                    {project.description && activeTab === 'tasks' && (
+                      <p className="text-sm text-cream-200/60 mb-3">{project.description}</p>
+                    )}
+
+                    {activeTab === 'tasks' && (
+                      <>
+                        <ul className="space-y-1 mb-3">
+                          {project.tasks.map(task => (
+                            <li key={task.id} className="flex items-center gap-2 group">
+                              <button onClick={() => toggleTask(project.id, task)} className="shrink-0">
+                                {task.status === 'done'
+                                  ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                  : <Circle className="w-4 h-4 text-cream-200/30 hover:text-cream-200/60" />
+                                }
+                              </button>
+                              <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-cream-200/30' : 'text-cream-100'}`}>{task.title}</span>
+                              <button onClick={() => deleteTask(project.id, task.id)} className="opacity-0 group-hover:opacity-100 text-cream-200/30 hover:text-red-400 transition-all">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="flex gap-2">
+                          <input
+                            value={newTaskText[project.id] ?? ''}
+                            onChange={e => setNewTaskText(prev => ({ ...prev, [project.id]: e.target.value }))}
+                            onKeyDown={e => e.key === 'Enter' && addTask(project.id)}
+                            placeholder="Add a task…"
+                            className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-xs text-cream-100 px-3 py-1.5 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
+                          />
+                          <button onClick={() => addTask(project.id)} className="text-xs bg-navy-600 hover:bg-navy-500 text-cream-100 rounded-lg px-3 py-1.5 transition-colors">Add</button>
+                        </div>
+                      </>
+                    )}
+
+                    {activeTab === 'meetings' && (
+                      <>
+                        {project.meetings.length === 0 ? (
+                          <p className="text-sm text-cream-200/40 py-2">No meetings linked to this project yet.</p>
+                        ) : (
+                          <ul className="space-y-2 mb-3">
+                            {project.meetings.map(m => (
+                              <li key={m.id} className="p-3 bg-navy-700 rounded-lg border border-navy-600">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-cream-100 truncate">{m.title}</p>
+                                    <p className="text-[10px] text-cream-200/40 mt-0.5">
+                                      {formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}
+                                      {m.attendees?.length > 0 && ` · ${m.attendees.map((a: { name: string }) => a.name).join(', ')}`}
+                                    </p>
+                                  </div>
+                                  {m.summary && <span className="text-[10px] text-emerald-400 shrink-0">✓ AI</span>}
+                                </div>
+                                {m.summary && (
+                                  <p className="text-xs text-cream-200/50 mt-1.5 line-clamp-2">{m.summary}</p>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <a
+                          href="/meetings"
+                          className="flex items-center gap-1.5 text-xs text-gold-400 hover:text-gold-300 transition-colors"
+                        >
+                          <ArrowRight className="w-3.5 h-3.5" /> Add or view meetings in Meetings module
+                        </a>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -215,48 +284,34 @@ export default function ProjectsPage() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Name *</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Workflow Automation Engagement"
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Q4 Audit Preparation"
                   className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Client</label>
-                  <select value={form.contact_id} onChange={e => setForm(f => ({ ...f, contact_id: e.target.value }))}
+                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Area</label>
+                  <select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
                     className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2">
                     <option value="">— None —</option>
-                    {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>)}
+                    {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Status</label>
-                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as ProjectStatus }))}
-                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2">
-                    {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Start Date</label>
-                  <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Due Date</label>
                   <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
                     className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2" />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Value $</label>
-                  <input type="number" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} placeholder="5000"
-                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30" />
-                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Start Date</label>
+                <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
+                  className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Description</label>
-                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2}
+                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3}
                   className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none resize-none"
-                  placeholder="Scope, deliverables…" />
+                  placeholder="Scope, objectives, notes…" />
               </div>
             </div>
             <div className="flex gap-3 p-6 pt-0">

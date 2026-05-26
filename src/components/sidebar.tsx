@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { BrainCircuit, LayoutDashboard, Lightbulb, Users, FolderKanban, CalendarDays, FileText, LogOut } from 'lucide-react'
+import { LayoutDashboard, Lightbulb, FolderKanban, CalendarDays, ClipboardList, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/ideas', label: 'Idea Lab', icon: Lightbulb },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
+  { href: '/monthly-tasks', label: 'Monthly Tasks', icon: ClipboardList },
   { href: '/meetings', label: 'Meetings', icon: CalendarDays },
 ]
 
@@ -26,11 +27,13 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
   return (
     <aside className="w-56 shrink-0 flex flex-col bg-navy-800 border-r border-navy-600 h-screen sticky top-0">
       {/* Brand */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-navy-600">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-navy-700 border border-gold-500/30">
-          <BrainCircuit className="w-4 h-4 text-gold-500" />
-        </div>
-        <span className="font-bold text-cream-100 text-sm tracking-wide">Goodwill Hub</span>
+      <div className="flex flex-col px-4 py-4 border-b border-navy-600 gap-2">
+        <img
+          src="/goodwill-logo.png"
+          alt="Goodwill of Central and Coastal Virginia"
+          className="w-40 rounded"
+        />
+        <span className="font-bold text-cream-100 text-sm tracking-wide pl-1">Goodwill Hub</span>
       </div>
 
       {/* Nav */}

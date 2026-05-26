@@ -2,18 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Meeting, MeetingType, MeetingStatus, ActionItem, Contact, Project } from '@/lib/types'
+import { Meeting, MeetingType, MeetingStatus, ActionItem, Project, MeetingAttendee, MeetingSeries, SavedAttendee } from '@/lib/types'
 import { toast } from 'sonner'
 import {
   Plus, X, CalendarDays, List, ChevronLeft, ChevronRight,
-  Clock, Users, FolderKanban, Upload, Sparkles, Copy,
-  CheckCircle2, Circle, Trash2, Pencil, ArrowRight
+  Clock, FolderKanban, Upload, Sparkles, Copy,
+  CheckCircle2, Circle, Trash2, Pencil, ArrowRight, UserPlus, Tag
 } from 'lucide-react'
-import { formatDate, formatCurrency } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 
 const TYPES: { value: MeetingType; label: string; color: string }[] = [
-  { value: 'client-call', label: 'Client Call', color: 'bg-blue-500/20 text-blue-300' },
-  { value: 'discovery', label: 'Discovery', color: 'bg-gold-500/20 text-gold-400' },
+  { value: 'client-call', label: 'Department Meeting', color: 'bg-blue-500/20 text-blue-300' },
+  { value: 'discovery', label: 'Project Kickoff', color: 'bg-gold-500/20 text-gold-400' },
   { value: 'internal', label: 'Internal', color: 'bg-navy-600/80 text-cream-200/60' },
   { value: 'follow-up', label: 'Follow-up', color: 'bg-purple-500/20 text-purple-300' },
   { value: 'other', label: 'Other', color: 'bg-navy-600/60 text-cream-200/40' },
@@ -30,15 +30,17 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 
 const EMPTY_FORM = {
   title: '', meeting_date: '', meeting_time: '', duration_minutes: '',
-  type: 'client-call' as MeetingType, contact_id: '', project_id: '',
+  type: 'internal' as MeetingType, project_id: '',
   notes: '', status: 'scheduled' as MeetingStatus,
+  series_id: '',
 }
 
 export default function MeetingsPage() {
   const supabase = createClient()
   const [meetings, setMeetings] = useState<Meeting[]>([])
-  const [contacts, setContacts] = useState<Pick<Contact, 'id' | 'name' | 'company'>[]>([])
   const [projects, setProjects] = useState<Pick<Project, 'id' | 'name'>[]>([])
+  const [seriesList, setSeriesList] = useState<MeetingSeries[]>([])
+  const [savedAttendees, setSavedAttendees] = useState<SavedAttendee[]>([])
   const [selected, setSelected] = useState<Meeting | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [calDate, setCalDate] = useState(new Date())
@@ -46,6 +48,10 @@ export default function MeetingsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Meeting | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [formAttendees, setFormAttendees] = useState<MeetingAttendee[]>([])
+  const [attendeeInput, setAttendeeInput] = useState({ name: '', position: '' })
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [newSeriesName, setNewSeriesName] = useState('')
   const [saving, setSaving] = useState(false)
   const [notesDraft, setNotesDraft] = useState('')
   const [transcriptDraft, setTranscriptDraft] = useState('')
@@ -53,6 +59,7 @@ export default function MeetingsPage() {
   const [actionItems, setActionItems] = useState<ActionItem[]>([])
   const [pushingToProject, setPushingToProject] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { load() }, [])
   useEffect(() => {
@@ -62,19 +69,24 @@ export default function MeetingsPage() {
   }, [selected?.id])
 
   async function load() {
-    const [{ data: m }, { data: c }, { data: p }] = await Promise.all([
-      supabase.from('meetings').select('*, contact:contacts(id,name,company), project:projects(id,name)').order('meeting_date', { ascending: false }),
-      supabase.from('contacts').select('id,name,company').order('name'),
+    const [{ data: m }, { data: p }, { data: s }, { data: sa }] = await Promise.all([
+      supabase.from('meetings').select('*, project:projects(id,name), series:meeting_series(id,name)').order('meeting_date', { ascending: false }),
       supabase.from('projects').select('id,name').order('name'),
+      supabase.from('meeting_series').select('*').order('name'),
+      supabase.from('saved_attendees').select('*').order('name'),
     ])
-    setMeetings(m ?? [])
-    setContacts(c ?? [])
+    setMeetings((m ?? []).map(mtg => ({ ...mtg, attendees: mtg.attendees ?? [], action_items: mtg.action_items ?? [] })))
     setProjects(p ?? [])
+    setSeriesList(s ?? [])
+    setSavedAttendees(sa ?? [])
   }
 
   function openAdd() {
     setEditing(null)
     setForm({ ...EMPTY_FORM, meeting_date: new Date().toISOString().split('T')[0] })
+    setFormAttendees([])
+    setAttendeeInput({ name: '', position: '' })
+    setNewSeriesName('')
     setShowModal(true)
   }
 
@@ -83,38 +95,94 @@ export default function MeetingsPage() {
     setForm({
       title: m.title, meeting_date: m.meeting_date, meeting_time: m.meeting_time ?? '',
       duration_minutes: m.duration_minutes != null ? String(m.duration_minutes) : '',
-      type: m.type, contact_id: m.contact_id ?? '', project_id: m.project_id ?? '',
+      type: m.type, project_id: m.project_id ?? '',
       notes: m.notes ?? '', status: m.status,
+      series_id: m.series_id ?? '',
     })
+    setFormAttendees(m.attendees ?? [])
+    setAttendeeInput({ name: '', position: '' })
+    setNewSeriesName('')
     setShowModal(true)
   }
+
+  function addAttendee() {
+    const name = attendeeInput.name.trim()
+    if (!name) return
+    if (formAttendees.some(a => a.name.toLowerCase() === name.toLowerCase())) {
+      toast.error('Attendee already added')
+      return
+    }
+    setFormAttendees(prev => [...prev, { name, position: attendeeInput.position.trim() || null }])
+    setAttendeeInput({ name: '', position: '' })
+    setShowSuggestions(false)
+    nameInputRef.current?.focus()
+  }
+
+  function removeAttendee(name: string) {
+    setFormAttendees(prev => prev.filter(a => a.name !== name))
+  }
+
+  function selectSuggestion(a: SavedAttendee) {
+    setAttendeeInput({ name: a.name, position: a.position ?? '' })
+    setShowSuggestions(false)
+    setTimeout(() => nameInputRef.current?.focus(), 0)
+  }
+
+  const attendeeSuggestions = attendeeInput.name.length >= 1
+    ? savedAttendees.filter(a =>
+        a.name.toLowerCase().includes(attendeeInput.name.toLowerCase()) &&
+        !formAttendees.some(fa => fa.name.toLowerCase() === a.name.toLowerCase())
+      ).slice(0, 5)
+    : []
 
   async function saveMeeting() {
     if (!form.title.trim() || !form.meeting_date) { toast.error('Title and date are required'); return }
     setSaving(true)
+
+    // Handle new series creation
+    let seriesId: string | null = form.series_id || null
+    if (form.series_id === '__new__' && newSeriesName.trim()) {
+      const { data: ns, error: nsErr } = await supabase.from('meeting_series').insert({ name: newSeriesName.trim() }).select().single()
+      if (nsErr) { toast.error('Failed to create series'); setSaving(false); return }
+      seriesId = ns.id
+      setSeriesList(prev => [...prev, ns])
+    }
+
+    // Save new attendees to saved_attendees table
+    const existingNames = savedAttendees.map(a => a.name.toLowerCase())
+    const newOnes = formAttendees.filter(a => !existingNames.includes(a.name.toLowerCase()))
+    if (newOnes.length > 0) {
+      const { data: saved } = await supabase.from('saved_attendees').insert(newOnes.map(a => ({ name: a.name, position: a.position }))).select()
+      if (saved) setSavedAttendees(prev => [...prev, ...saved])
+    }
+
     const payload = {
       title: form.title.trim(),
       meeting_date: form.meeting_date,
       meeting_time: form.meeting_time || null,
       duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes) : null,
       type: form.type,
-      contact_id: form.contact_id || null,
       project_id: form.project_id || null,
       notes: form.notes || null,
       status: form.status,
+      attendees: formAttendees,
+      series_id: seriesId,
+      contact_id: null,
     }
+
     if (editing) {
       const { data, error } = await supabase.from('meetings').update(payload).eq('id', editing.id)
-        .select('*, contact:contacts(id,name,company), project:projects(id,name)').single()
+        .select('*, project:projects(id,name), series:meeting_series(id,name)').single()
       if (error) { toast.error('Failed to save'); setSaving(false); return }
-      setMeetings(prev => prev.map(m => m.id === editing.id ? { ...data, action_items: data.action_items ?? [] } : m))
-      if (selected?.id === editing.id) setSelected({ ...data, action_items: data.action_items ?? [] })
+      const updated = { ...data, attendees: data.attendees ?? [], action_items: data.action_items ?? [] }
+      setMeetings(prev => prev.map(m => m.id === editing.id ? updated : m))
+      if (selected?.id === editing.id) setSelected(updated)
       toast.success('Meeting updated')
     } else {
       const { data, error } = await supabase.from('meetings').insert(payload)
-        .select('*, contact:contacts(id,name,company), project:projects(id,name)').single()
+        .select('*, project:projects(id,name), series:meeting_series(id,name)').single()
       if (error) { toast.error('Failed to save'); setSaving(false); return }
-      setMeetings(prev => [{ ...data, action_items: [] }, ...prev])
+      setMeetings(prev => [{ ...data, attendees: data.attendees ?? [], action_items: [] }, ...prev])
       toast.success('Meeting added')
     }
     setSaving(false)
@@ -174,13 +242,16 @@ export default function MeetingsPage() {
   async function analyzeTranscript() {
     if (!selected || !transcriptDraft.trim()) { toast.error('Paste or upload a transcript first'); return }
     setAnalyzing(true)
-    // Save transcript first
     await supabase.from('meetings').update({ transcript: transcriptDraft.trim(), status: 'completed' }).eq('id', selected.id)
+
+    const attendeeStr = selected.attendees?.length > 0
+      ? `Attendees: ${selected.attendees.map(a => `${a.name}${a.position ? ` (${a.position})` : ''}`).join(', ')}`
+      : ''
 
     const context = [
       selected.title,
-      selected.contact ? `Attendee: ${selected.contact.name}${selected.contact.company ? ` (${selected.contact.company})` : ''}` : '',
-      selected.project ? `Project: ${selected.project.name}` : '',
+      attendeeStr,
+      selected.project ? `Project: ${(selected.project as { name: string }).name}` : '',
       selected.meeting_date ? `Date: ${formatDate(selected.meeting_date)}` : '',
     ].filter(Boolean).join('\n')
 
@@ -296,7 +367,6 @@ export default function MeetingsPage() {
           </div>
         </div>
 
-        {/* Calendar grid */}
         {viewMode === 'calendar' && (
           <div className="p-3 border-b border-navy-600">
             <div className="flex items-center justify-between mb-2">
@@ -314,9 +384,7 @@ export default function MeetingsPage() {
                 const isSelected = selectedDay === day
                 const hasMeetings = !!meetingsByDay[day]
                 return (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedDay(isSelected ? null : day)}
+                  <button key={i} onClick={() => setSelectedDay(isSelected ? null : day)}
                     className={`relative flex flex-col items-center justify-center h-7 rounded text-xs font-medium transition-colors ${isSelected ? 'bg-gold-500 text-navy-900' : isToday ? 'bg-navy-600 text-cream-100' : 'text-cream-200/60 hover:bg-navy-700 hover:text-cream-100'}`}
                   >
                     {day}
@@ -326,23 +394,14 @@ export default function MeetingsPage() {
                 )
               })}
             </div>
-            {selectedDay && (
-              <button onClick={() => setSelectedDay(null)} className="mt-2 text-[10px] text-cream-200/40 hover:text-cream-200/70 transition-colors">
-                Clear filter ×
-              </button>
-            )}
+            {selectedDay && <button onClick={() => setSelectedDay(null)} className="mt-2 text-[10px] text-cream-200/40 hover:text-cream-200/70 transition-colors">Clear filter ×</button>}
           </div>
         )}
 
-        {/* Meeting list */}
         <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
-          {filteredMeetings.length === 0 && (
-            <li className="p-4 text-sm text-cream-200/40">No meetings{selectedDay ? ' on this day' : ''}.</li>
-          )}
+          {filteredMeetings.length === 0 && <li className="p-4 text-sm text-cream-200/40">No meetings{selectedDay ? ' on this day' : ''}.</li>}
           {filteredMeetings.map(m => (
-            <li
-              key={m.id}
-              onClick={() => setSelected(m)}
+            <li key={m.id} onClick={() => setSelected(m)}
               className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
             >
               <div className="flex items-start justify-between gap-1">
@@ -352,9 +411,14 @@ export default function MeetingsPage() {
               <div className="flex items-center gap-2 mt-1 text-[10px] text-cream-200/40">
                 <span>{formatDate(m.meeting_date)}</span>
                 {m.meeting_time && <span>{m.meeting_time.slice(0, 5)}</span>}
-                {m.contact && <span>· {(m.contact as { name: string }).name}</span>}
+                {m.series && <span className="flex items-center gap-0.5"><Tag className="w-2.5 h-2.5" />{(m.series as MeetingSeries).name}</span>}
                 {m.summary && <span className="ml-auto">✓ AI</span>}
               </div>
+              {m.attendees?.length > 0 && (
+                <p className="text-[10px] text-cream-200/30 mt-0.5 truncate">
+                  {m.attendees.map(a => a.name).join(', ')}
+                </p>
+              )}
             </li>
           ))}
         </ul>
@@ -363,7 +427,6 @@ export default function MeetingsPage() {
       {/* Right panel */}
       {selected ? (
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-          {/* Header */}
           <div className="p-5 border-b border-navy-600 sticky top-0 bg-navy-900 z-10">
             <div className="flex items-start justify-between gap-4 mb-2">
               <h2 className="text-lg font-bold text-cream-100 leading-snug">{selected.title}</h2>
@@ -372,29 +435,33 @@ export default function MeetingsPage() {
                 <button onClick={() => deleteMeeting(selected.id)} className="text-cream-200/40 hover:text-red-400 p-1.5 rounded hover:bg-navy-700 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-cream-200/50">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-cream-200/50">
               <span className={`font-medium px-2 py-0.5 rounded ${typeObj(selected.type).color}`}>{typeObj(selected.type).label}</span>
               <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDate(selected.meeting_date)}{selected.meeting_time ? ` · ${selected.meeting_time.slice(0, 5)}` : ''}{selected.duration_minutes ? ` · ${selected.duration_minutes}min` : ''}</span>
-              {selected.contact && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{(selected.contact as { name: string; company: string | null }).name}{selected.contact.company ? ` (${selected.contact.company})` : ''}</span>}
               {selected.project && <span className="flex items-center gap-1"><FolderKanban className="w-3 h-3" />{(selected.project as { name: string }).name}</span>}
+              {selected.series && <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{(selected.series as MeetingSeries).name}</span>}
             </div>
+            {selected.attendees?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {selected.attendees.map(a => (
+                  <span key={a.name} className="text-[10px] bg-navy-700 border border-navy-600 text-cream-200/70 rounded-full px-2.5 py-1">
+                    {a.name}{a.position ? ` · ${a.position}` : ''}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="p-5 space-y-6">
-            {/* Pre-meeting notes */}
             <section>
               <label className="block text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-2">Pre-meeting Notes / Agenda</label>
-              <textarea
-                value={notesDraft}
-                onChange={e => setNotesDraft(e.target.value)}
-                onBlur={saveNotes}
+              <textarea value={notesDraft} onChange={e => setNotesDraft(e.target.value)} onBlur={saveNotes}
                 placeholder="Agenda, talking points, questions to ask… (saves automatically)"
                 rows={3}
                 className="w-full bg-navy-700 border border-navy-600 rounded-xl text-sm text-cream-100 px-4 py-2.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-none transition-colors"
               />
             </section>
 
-            {/* Transcript */}
             <section>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Transcript</label>
@@ -405,18 +472,13 @@ export default function MeetingsPage() {
                   </button>
                 </div>
               </div>
-              <textarea
-                value={transcriptDraft}
-                onChange={e => setTranscriptDraft(e.target.value)}
-                onBlur={saveTranscript}
+              <textarea value={transcriptDraft} onChange={e => setTranscriptDraft(e.target.value)} onBlur={saveTranscript}
                 placeholder="Paste your meeting transcript here, or upload a file above…"
                 rows={6}
                 className="w-full bg-navy-700 border border-navy-600 rounded-xl text-sm text-cream-100 px-4 py-2.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-y transition-colors font-mono text-xs leading-relaxed"
               />
               {transcriptDraft.trim() && (
-                <button
-                  onClick={analyzeTranscript}
-                  disabled={analyzing}
+                <button onClick={analyzeTranscript} disabled={analyzing}
                   className="mt-3 w-full flex items-center justify-center gap-2 bg-gold-500 hover:bg-gold-400 disabled:opacity-60 text-navy-900 font-semibold text-sm py-2.5 rounded-xl transition-colors"
                 >
                   <Sparkles className="w-4 h-4" />
@@ -425,13 +487,10 @@ export default function MeetingsPage() {
               )}
             </section>
 
-            {/* AI Results */}
             {selected.summary && (
               <section>
                 <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-2">AI Summary</p>
-                <div className="bg-navy-700 border border-navy-600 rounded-xl p-4 text-sm text-cream-100 leading-relaxed">
-                  {selected.summary}
-                </div>
+                <div className="bg-navy-700 border border-navy-600 rounded-xl p-4 text-sm text-cream-100 leading-relaxed">{selected.summary}</div>
               </section>
             )}
 
@@ -440,9 +499,7 @@ export default function MeetingsPage() {
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Action Items</p>
                   {selected.project_id && (
-                    <button
-                      onClick={pushTasksToProject}
-                      disabled={pushingToProject || actionItems.every(a => a.done)}
+                    <button onClick={pushTasksToProject} disabled={pushingToProject || actionItems.every(a => a.done)}
                       className="flex items-center gap-1 text-[10px] bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 disabled:opacity-40 px-2 py-1 rounded-lg transition-colors"
                     >
                       <ArrowRight className="w-3 h-3" /> Push to Project
@@ -453,10 +510,7 @@ export default function MeetingsPage() {
                   {actionItems.map(item => (
                     <li key={item.id} className="flex items-start gap-3 p-3 bg-navy-700 rounded-xl border border-navy-600">
                       <button onClick={() => toggleActionItem(item)} className="mt-0.5 shrink-0">
-                        {item.done
-                          ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                          : <Circle className="w-4 h-4 text-cream-200/30 hover:text-cream-200/60" />
-                        }
+                        {item.done ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Circle className="w-4 h-4 text-cream-200/30 hover:text-cream-200/60" />}
                       </button>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm ${item.done ? 'line-through text-cream-200/30' : 'text-cream-100'}`}>{item.title}</p>
@@ -468,9 +522,6 @@ export default function MeetingsPage() {
                     </li>
                   ))}
                 </ul>
-                {!selected.project_id && actionItems.some(a => !a.done) && (
-                  <p className="text-[10px] text-cream-200/30 mt-2">Link this meeting to a project to push action items as tasks.</p>
-                )}
               </section>
             )}
 
@@ -478,8 +529,7 @@ export default function MeetingsPage() {
               <section>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Follow-up Email Draft</p>
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(selected.followup_email ?? ''); toast.success('Copied to clipboard') }}
+                  <button onClick={() => { navigator.clipboard.writeText(selected.followup_email ?? ''); toast.success('Copied to clipboard') }}
                     className="flex items-center gap-1 text-[10px] bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-2 py-1 rounded-lg transition-colors"
                   >
                     <Copy className="w-3 h-3" /> Copy
@@ -502,17 +552,20 @@ export default function MeetingsPage() {
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="bg-navy-800 border border-navy-600 rounded-2xl w-full max-w-lg">
+          <div className="bg-navy-800 border border-navy-600 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-navy-600">
               <h2 className="font-bold text-cream-100">{editing ? 'Edit Meeting' : 'Add Meeting'}</h2>
               <button onClick={() => setShowModal(false)}><X className="w-4 h-4 text-cream-200/50" /></button>
             </div>
             <div className="p-6 space-y-4">
+              {/* Title */}
               <div>
                 <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Title *</label>
-                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Discovery call with Acme Corp"
+                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. May Close Review with CFO"
                   className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none" />
               </div>
+
+              {/* Date / Time */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Date *</label>
@@ -525,6 +578,8 @@ export default function MeetingsPage() {
                     className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2" />
                 </div>
               </div>
+
+              {/* Type / Duration */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Type</label>
@@ -539,15 +594,9 @@ export default function MeetingsPage() {
                     className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30" />
                 </div>
               </div>
+
+              {/* Project / Status */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Contact</label>
-                  <select value={form.contact_id} onChange={e => setForm(f => ({ ...f, contact_id: e.target.value }))}
-                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2">
-                    <option value="">— None —</option>
-                    {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>)}
-                  </select>
-                </div>
                 <div>
                   <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Project</label>
                   <select value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}
@@ -556,15 +605,88 @@ export default function MeetingsPage() {
                     {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Status</label>
+                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as MeetingStatus }))}
+                    className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2">
+                    {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
               </div>
+
+              {/* Series */}
               <div>
-                <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Status</label>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as MeetingStatus }))}
+                <label className="block text-xs font-medium text-cream-200/60 mb-1.5">Meeting Series</label>
+                <select value={form.series_id} onChange={e => { setForm(f => ({ ...f, series_id: e.target.value })); setNewSeriesName('') }}
                   className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2">
-                  {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  <option value="">— None —</option>
+                  {seriesList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  <option value="__new__">+ Create new series…</option>
                 </select>
+                {form.series_id === '__new__' && (
+                  <input
+                    value={newSeriesName}
+                    onChange={e => setNewSeriesName(e.target.value)}
+                    placeholder="Series name (e.g. Monthly CFO Results Review)"
+                    className="w-full mt-2 bg-navy-700 border border-gold-500/40 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
+                  />
+                )}
+              </div>
+
+              {/* Attendees */}
+              <div>
+                <label className="block text-xs font-medium text-cream-200/60 mb-1.5 flex items-center gap-1">
+                  <UserPlus className="w-3 h-3" /> Attendees
+                </label>
+                <div className="flex gap-2 mb-2 relative">
+                  <div className="flex-1 relative">
+                    <input
+                      ref={nameInputRef}
+                      value={attendeeInput.name}
+                      onChange={e => { setAttendeeInput(p => ({ ...p, name: e.target.value })); setShowSuggestions(true) }}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAttendee())}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                      placeholder="Name"
+                      className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
+                    />
+                    {showSuggestions && attendeeSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-navy-700 border border-navy-500 rounded-lg overflow-hidden z-20 shadow-xl">
+                        {attendeeSuggestions.map(a => (
+                          <button key={a.id} onMouseDown={() => selectSuggestion(a)}
+                            className="w-full text-left px-3 py-2 text-sm text-cream-100 hover:bg-navy-600 transition-colors flex items-center justify-between"
+                          >
+                            <span>{a.name}</span>
+                            {a.position && <span className="text-[10px] text-cream-200/40">{a.position}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    value={attendeeInput.position}
+                    onChange={e => setAttendeeInput(p => ({ ...p, position: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAttendee())}
+                    placeholder="Title / Role"
+                    className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
+                  />
+                  <button onClick={addAttendee} className="bg-navy-600 hover:bg-navy-500 text-cream-100 px-3 py-2 rounded-lg text-xs transition-colors shrink-0">Add</button>
+                </div>
+                {formAttendees.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {formAttendees.map(a => (
+                      <span key={a.name} className="flex items-center gap-1.5 text-xs bg-navy-700 border border-navy-600 text-cream-200/80 rounded-full pl-3 pr-2 py-1">
+                        {a.name}{a.position ? ` · ${a.position}` : ''}
+                        <button onClick={() => removeAttendee(a.name)} className="text-cream-200/40 hover:text-red-400 transition-colors">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
+
             <div className="flex gap-3 p-6 pt-0">
               {editing && <button onClick={() => { deleteMeeting(editing.id); setShowModal(false) }} className="text-xs text-red-400 hover:text-red-300 transition-colors mr-auto">Delete</button>}
               <button onClick={() => setShowModal(false)} className="flex-1 bg-navy-700 hover:bg-navy-600 text-cream-100 text-sm font-medium rounded-lg py-2.5 transition-colors">Cancel</button>

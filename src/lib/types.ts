@@ -1,4 +1,4 @@
-export type IdeaCategory = 'quick-revenue' | 'new-service' | 'product' | 'partnership' | 'other'
+export type IdeaCategory = 'process-improvement' | 'reporting' | 'controls' | 'technology' | 'team' | 'other'
 export type IdeaStatus = 'raw' | 'exploring' | 'in-progress' | 'implemented' | 'shelved'
 export type ContactStage = 'discovery' | 'proposal' | 'active' | 'complete' | 'lost'
 export type ProjectStatus = 'scoping' | 'in-progress' | 'review' | 'delivered'
@@ -44,6 +44,7 @@ export interface Project {
   start_date: string | null
   due_date: string | null
   value: number | null
+  area: string | null
   created_at: string
   contact?: Contact
   tasks?: Task[]
@@ -69,6 +70,24 @@ export interface ActionItem {
   done: boolean
 }
 
+export interface MeetingAttendee {
+  name: string
+  position: string | null
+}
+
+export interface MeetingSeries {
+  id: string
+  name: string
+  created_at: string
+}
+
+export interface SavedAttendee {
+  id: string
+  name: string
+  position: string | null
+  created_at: string
+}
+
 export interface Meeting {
   id: string
   title: string
@@ -84,9 +103,12 @@ export interface Meeting {
   action_items: ActionItem[]
   followup_email: string | null
   status: MeetingStatus
+  attendees: MeetingAttendee[]
+  series_id: string | null
   created_at: string
   contact?: { id: string; name: string; company: string | null }
   project?: { id: string; name: string }
+  series?: MeetingSeries
 }
 
 export interface ContentItem {
@@ -100,5 +122,18 @@ export interface ContentItem {
   notes: string | null
   case_study_ref: string | null
   ai_style: string | null
+  created_at: string
+}
+
+export interface MonthlyTask {
+  id: string
+  month_year: string
+  title: string
+  completed: boolean
+  completed_at: string | null
+  due_date: string | null
+  notes: string | null
+  sort_order: number
+  is_recurring: boolean
   created_at: string
 }

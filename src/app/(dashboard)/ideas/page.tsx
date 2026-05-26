@@ -4,14 +4,15 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Idea, IdeaCategory, IdeaStatus, ChatMessage } from '@/lib/types'
 import { toast } from 'sonner'
-import { Plus, Lightbulb, Send, Trash2, ChevronRight, Sparkles, FolderKanban, Users, CheckSquare, Square, Archive, X } from 'lucide-react'
+import { Plus, Lightbulb, Send, Trash2, ChevronRight, Sparkles, FolderKanban, CheckSquare, Square, Archive, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 const CATEGORIES: { value: IdeaCategory; label: string }[] = [
-  { value: 'quick-revenue', label: 'Quick Revenue' },
-  { value: 'new-service', label: 'New Service' },
-  { value: 'product', label: 'Product' },
-  { value: 'partnership', label: 'Partnership' },
+  { value: 'process-improvement', label: 'Process Improvement' },
+  { value: 'reporting', label: 'Reporting & Analytics' },
+  { value: 'controls', label: 'Internal Controls' },
+  { value: 'technology', label: 'Technology & Systems' },
+  { value: 'team', label: 'Team & Training' },
   { value: 'other', label: 'Other' },
 ]
 
@@ -31,24 +32,18 @@ export default function IdeasPage() {
   const [filterStatus, setFilterStatus] = useState<IdeaStatus | 'all'>('all')
   const [filterCategory, setFilterCategory] = useState<IdeaCategory | 'all'>('all')
   const [newTitle, setNewTitle] = useState('')
-  const [newCategory, setNewCategory] = useState<IdeaCategory>('other')
+  const [newCategory, setNewCategory] = useState<IdeaCategory>('process-improvement')
   const [chatInput, setChatInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [bodyDraft, setBodyDraft] = useState('')
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [showConvertContact, setShowConvertContact] = useState(false)
-  const [convertName, setConvertName] = useState('')
-  const [convertCompany, setConvertCompany] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { loadIdeas() }, [])
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [selected?.ai_thread])
   useEffect(() => {
     setBodyDraft(selected?.body ?? '')
-    setShowConvertContact(false)
-    setConvertName('')
-    setConvertCompany('')
   }, [selected?.id])
 
   async function loadIdeas() {
@@ -66,7 +61,7 @@ export default function IdeasPage() {
     if (error) { toast.error('Failed to save idea'); return }
     setIdeas(prev => [data, ...prev])
     setNewTitle('')
-    setNewCategory('other')
+    setNewCategory('process-improvement')
     setShowAdd(false)
     toast.success('Idea captured')
   }
@@ -108,26 +103,7 @@ export default function IdeasPage() {
     })
   }
 
-  async function convertToContact() {
-    if (!selected || !convertName.trim()) return
-    const notes = `Idea: ${selected.title}${selected.body ? '\n\n' + selected.body : ''}`
-    const { error } = await supabase.from('contacts').insert({
-      name: convertName.trim(),
-      company: convertCompany.trim() || null,
-      stage: 'discovery',
-      notes,
-    })
-    if (error) { toast.error('Failed to create contact'); return }
-    toast.success('Contact added to CRM', {
-      action: { label: 'View CRM', onClick: () => { window.location.href = '/crm' } },
-    })
-    setShowConvertContact(false)
-    setConvertName('')
-    setConvertCompany('')
-  }
-
-  function toggleSelectItem(id: string, e: React.MouseEvent) {
-    e.stopPropagation()
+  function toggleSelectItem(id: string) {
     setSelectedIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
   }
 
@@ -149,11 +125,6 @@ export default function IdeasPage() {
     setSelectedIds(new Set())
     setSelectMode(false)
     toast.success(`${ids.length} idea${ids.length !== 1 ? 's' : ''} deleted`)
-  }
-
-  function exitSelectMode() {
-    setSelectMode(false)
-    setSelectedIds(new Set())
   }
 
   async function sendMessage() {
@@ -270,7 +241,7 @@ export default function IdeasPage() {
             return (
               <li
                 key={idea.id}
-                onClick={() => selectMode ? toggleSelectItem(idea.id, { stopPropagation: () => {} } as React.MouseEvent) : setSelected(idea)}
+                onClick={() => selectMode ? toggleSelectItem(idea.id) : setSelected(idea)}
                 className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${!selectMode && selected?.id === idea.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''} ${selectMode && isChecked ? 'bg-navy-700/60' : ''}`}
               >
                 <div className="flex items-start gap-2">
@@ -286,8 +257,10 @@ export default function IdeasPage() {
                   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${statusObj(idea.status).color}`}>
                     {statusObj(idea.status).label}
                   </span>
+                  <span className="text-[10px] text-cream-200/40">
+                    {CATEGORIES.find(c => c.value === idea.category)?.label}
+                  </span>
                   {idea.ai_thread?.length ? <span className="text-[10px] text-cream-200/30">💬</span> : null}
-                  {idea.body ? <span className="text-[10px] text-cream-200/30">📝</span> : null}
                   <span className="text-[10px] text-cream-200/30 ml-auto">{formatDate(idea.created_at)}</span>
                 </div>
               </li>
@@ -295,7 +268,6 @@ export default function IdeasPage() {
           })}
         </ul>
 
-        {/* Bulk action bar */}
         {selectMode && selectedIds.size > 0 && (
           <div className="border-t border-navy-600 p-3 bg-navy-700 flex items-center gap-2">
             <span className="text-xs text-cream-200/60 flex-1">{selectedIds.size} selected</span>
@@ -305,7 +277,7 @@ export default function IdeasPage() {
             <button onClick={bulkDelete} className="flex items-center gap-1 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2.5 py-1.5 rounded-lg transition-colors">
               <Trash2 className="w-3 h-3" /> Delete
             </button>
-            <button onClick={exitSelectMode} className="text-cream-200/40 hover:text-cream-100 p-1 transition-colors">
+            <button onClick={() => { setSelectMode(false); setSelectedIds(new Set()) }} className="text-cream-200/40 hover:text-cream-100 p-1 transition-colors">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -334,51 +306,13 @@ export default function IdeasPage() {
               >
                 {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
-              <div className="flex items-center gap-1.5 ml-auto">
-                <button
-                  onClick={convertToProject}
-                  className="flex items-center gap-1 text-xs bg-navy-700 hover:bg-navy-600 border border-navy-500 text-cream-200/70 hover:text-cream-100 px-2.5 py-1 rounded-lg transition-colors"
-                >
-                  <FolderKanban className="w-3 h-3" /> → Project
-                </button>
-                <button
-                  onClick={() => setShowConvertContact(v => !v)}
-                  className={`flex items-center gap-1 text-xs border px-2.5 py-1 rounded-lg transition-colors ${showConvertContact ? 'bg-navy-600 border-gold-500/40 text-cream-100' : 'bg-navy-700 hover:bg-navy-600 border-navy-500 text-cream-200/70 hover:text-cream-100'}`}
-                >
-                  <Users className="w-3 h-3" /> → Contact
-                </button>
-              </div>
+              <button
+                onClick={convertToProject}
+                className="flex items-center gap-1 text-xs bg-navy-700 hover:bg-navy-600 border border-navy-500 text-cream-200/70 hover:text-cream-100 px-2.5 py-1 rounded-lg transition-colors ml-auto"
+              >
+                <FolderKanban className="w-3 h-3" /> → Project
+              </button>
             </div>
-
-            {/* Convert to contact mini-form */}
-            {showConvertContact && (
-              <div className="mt-3 p-3 bg-navy-700 rounded-xl border border-navy-500 space-y-2">
-                <p className="text-[10px] text-cream-200/40 uppercase tracking-wider font-medium">Add to CRM as Discovery lead</p>
-                <div className="flex gap-2">
-                  <input
-                    autoFocus
-                    value={convertName}
-                    onChange={e => setConvertName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && convertToContact()}
-                    placeholder="Contact name *"
-                    className="flex-1 bg-navy-800 border border-navy-600 rounded-lg text-xs text-cream-100 px-3 py-1.5 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
-                  />
-                  <input
-                    value={convertCompany}
-                    onChange={e => setConvertCompany(e.target.value)}
-                    placeholder="Company"
-                    className="flex-1 bg-navy-800 border border-navy-600 rounded-lg text-xs text-cream-100 px-3 py-1.5 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={convertToContact}
-                    disabled={!convertName.trim()}
-                    className="bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-navy-900 font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Notes */}
@@ -399,8 +333,8 @@ export default function IdeasPage() {
             {(!selected.ai_thread || selected.ai_thread.length === 0) && (
               <div className="flex flex-col items-center justify-center h-full text-center text-cream-200/40">
                 <Sparkles className="w-8 h-8 mb-3 text-gold-500/40" />
-                <p className="text-sm font-medium text-cream-200/50">Ask Claude to brainstorm this idea</p>
-                <p className="text-xs mt-1">e.g. "What's the revenue potential?" or "What are the first 3 steps?"</p>
+                <p className="text-sm font-medium text-cream-200/50">Ask Claude to analyze this idea</p>
+                <p className="text-xs mt-1 max-w-xs">e.g. "How could we automate this?" or "What are the risks and controls needed?" or "What tools would support this?"</p>
               </div>
             )}
             {(selected.ai_thread ?? []).map((msg, i) => (
