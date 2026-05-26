@@ -6,8 +6,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'AIBC HQ',
-  description: 'AI Business Concepts internal workspace',
+  title: 'Goodwill Hub',
+  description: 'Goodwill of Central and Coastal Virginia internal workspace',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Toaster
           theme="dark"
           toastOptions={{
-            style: { background: '#0e2038', border: '1px solid #285087', color: '#F5F0E0' },
+            style: { background: '#002266', border: '1px solid #1a53cc', color: '#ffffff' },
           }}
         />
       </body>

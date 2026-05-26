@@ -8,10 +8,8 @@ import { createClient } from '@/lib/supabase/client'
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/ideas', label: 'Idea Lab', icon: Lightbulb },
-  { href: '/crm', label: 'CRM', icon: Users },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/meetings', label: 'Meetings', icon: CalendarDays },
-  { href: '/content', label: 'Content', icon: FileText },
 ]
 
 export default function Sidebar({ userEmail }: { userEmail: string }) {
@@ -32,7 +30,7 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-navy-700 border border-gold-500/30">
           <BrainCircuit className="w-4 h-4 text-gold-500" />
         </div>
-        <span className="font-bold text-cream-100 text-sm tracking-wide">AIBC HQ</span>
+        <span className="font-bold text-cream-100 text-sm tracking-wide">Goodwill Hub</span>
       </div>
 
       {/* Nav */}
