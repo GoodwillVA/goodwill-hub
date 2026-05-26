@@ -53,8 +53,10 @@ export default async function DashboardPage() {
   )
   const pendingCloseTasks = (closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).slice(0, 7)
 
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const easternHour = parseInt(
+    new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(new Date())
+  )
+  const greeting = easternHour < 12 ? 'Good morning' : easternHour < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
     <div className="p-8 w-full">
