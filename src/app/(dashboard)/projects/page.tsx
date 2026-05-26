@@ -234,7 +234,7 @@ export default function ProjectsPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 w-full max-w-5xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-cream-100 flex items-center gap-2">
           <FolderKanban className="w-5 h-5 text-gold-500" /> Projects

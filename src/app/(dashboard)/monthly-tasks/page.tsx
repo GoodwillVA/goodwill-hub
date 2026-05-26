@@ -202,7 +202,7 @@ export default function MonthlyTasksPage() {
 
   if (loading) {
     return (
-      <div className="p-8 max-w-3xl">
+      <div className="p-8 max-w-4xl">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-navy-700 rounded w-48" />
           <div className="h-64 bg-navy-800 rounded-xl" />
@@ -213,7 +213,7 @@ export default function MonthlyTasksPage() {
   }
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-8 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>

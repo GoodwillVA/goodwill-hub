@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
-import { Clock, FolderKanban, CalendarDays, Lightbulb, ArrowRight, Circle } from 'lucide-react'
+import { Clock, CalendarDays, ArrowRight, Circle } from 'lucide-react'
 import { formatDate, isDueSoon, isOverdue } from '@/lib/utils'
-import { Idea, Project, MonthlyTask } from '@/lib/types'
+import { Project, MonthlyTask } from '@/lib/types'
 import Link from 'next/link'
 import DayView from './DayView'
 
@@ -32,42 +32,45 @@ export default async function DashboardPage() {
   const nextWeekStr = nextWeekDate.toISOString().split('T')[0]
 
   const [
-    { data: ideas },
     { data: projects },
     { data: closeTasks },
     { data: upcomingMeetings },
   ] = await Promise.all([
-    supabase.from('ideas').select('*').order('created_at', { ascending: false }),
-    supabase.from('projects').select('*').order('due_date', { ascending: true, nullsFirst: false }),
+    supabase.from('projects').select('*').eq('is_general', false).order('due_date', { ascending: true, nullsFirst: false }),
     supabase.from('monthly_tasks').select('*').eq('month_year', activeMonthStr).order('sort_order', { ascending: true }),
-    supabase.from('meetings').select('id, title, meeting_date, meeting_time, type').gte('meeting_date', todayStr).neq('status', 'cancelled').order('meeting_date', { ascending: true }).limit(5),
+    supabase.from('meetings').select('id, title, meeting_date, meeting_time, type')
+      .gte('meeting_date', todayStr).neq('status', 'cancelled')
+      .order('meeting_date', { ascending: true }).limit(7),
   ])
 
   const totalClose = (closeTasks ?? []).length
   const doneClose = (closeTasks ?? []).filter((t: MonthlyTask) => t.completed).length
   const closePct = totalClose > 0 ? Math.round((doneClose / totalClose) * 100) : 0
-  const openIdeas = (ideas ?? []).filter((i: Idea) => ['raw', 'exploring'].includes(i.status)).length
-  const openProjects = (projects ?? []).filter((p: Project) => p.status !== 'delivered').length
+  const openProjects = (projects ?? []).filter((p: Project) => p.status !== 'delivered' && !p.is_general).length
   const meetingsThisWeek = (upcomingMeetings ?? []).filter((m: { meeting_date: string }) => m.meeting_date <= nextWeekStr).length
-  const dueSoonProjects = (projects ?? []).filter((p: Project) => (isDueSoon(p.due_date ?? undefined) || isOverdue(p.due_date ?? undefined)) && p.status !== 'delivered')
-  const recentIdeas = (ideas ?? []).slice(0, 5)
-  const pendingCloseTasks = (closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).slice(0, 5)
+  const dueSoonProjects = (projects ?? []).filter(
+    (p: Project) => (isDueSoon(p.due_date ?? undefined) || isOverdue(p.due_date ?? undefined)) && p.status !== 'delivered' && !p.is_general
+  )
+  const pendingCloseTasks = (closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).slice(0, 7)
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-8 w-full">
+      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-cream-100">{greeting}, Jon</h1>
-        <p className="text-cream-200/50 text-sm mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+        <p className="text-cream-200/50 text-sm mt-1">
+          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+        </p>
       </div>
 
       {/* 3-Day View */}
       <DayView />
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Stats — 3 cards */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <Link href="/monthly-tasks">
           <StatCard
             label={`${formatMonthYear(activeMonthStr)} Close`}
@@ -83,12 +86,11 @@ export default async function DashboardPage() {
         <Link href="/meetings">
           <StatCard label="Meetings This Week" value={String(meetingsThisWeek)} color="text-purple-400" />
         </Link>
-        <Link href="/ideas">
-          <StatCard label="Open Ideas" value={String(openIdeas)} color="text-yellow-400" />
-        </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {/* Widgets — 3 columns */}
+      <div className="grid grid-cols-3 gap-6">
+
         {/* Active Close */}
         <section className="bg-navy-800 border border-navy-600 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
@@ -100,7 +102,8 @@ export default async function DashboardPage() {
             </Link>
           </div>
           {totalClose === 0 ? (
-            <p className="text-cream-200/40 text-sm">No close tasks yet.{' '}
+            <p className="text-cream-200/40 text-sm">
+              No close tasks yet.{' '}
               <Link href="/monthly-tasks" className="text-gold-400 hover:underline">Add tasks →</Link>
             </p>
           ) : (
@@ -119,9 +122,9 @@ export default async function DashboardPage() {
                     {task.due_date && <span className="text-[10px] text-gold-400/70 shrink-0">{formatDate(task.due_date)}</span>}
                   </li>
                 ))}
-                {(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length > 5 && (
+                {(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length > 7 && (
                   <li className="text-[10px] text-cream-200/30 pl-6">
-                    +{(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length - 5} more pending
+                    +{(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length - 7} more pending
                   </li>
                 )}
               </ul>
@@ -146,16 +149,16 @@ export default async function DashboardPage() {
                   <CalendarDays className="w-3.5 h-3.5 text-gold-500 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-cream-100 truncate">{m.title}</p>
-                    <p className="text-[10px] text-cream-200/40">{formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}</p>
+                    <p className="text-[10px] text-cream-200/40">
+                      {formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}
+                    </p>
                   </div>
                 </li>
               ))}
             </ul>
           )}
         </section>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Projects Due Soon */}
         <section className="bg-navy-800 border border-navy-600 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
@@ -187,30 +190,6 @@ export default async function DashboardPage() {
           )}
         </section>
 
-        {/* Recent Ideas */}
-        <section className="bg-navy-800 border border-navy-600 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-cream-200/70 uppercase tracking-wider">Recent Ideas</h2>
-            <Link href="/ideas" className="text-[10px] text-gold-400 hover:text-gold-300 flex items-center gap-1 transition-colors">
-              View all <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-          {recentIdeas.length === 0 ? (
-            <p className="text-cream-200/40 text-sm">No ideas yet. Head to Idea Lab to start capturing.</p>
-          ) : (
-            <ul className="divide-y divide-navy-600">
-              {recentIdeas.map((idea: Idea) => (
-                <li key={idea.id} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${ideaStatusColor(idea.status)}`} />
-                  <div className="min-w-0">
-                    <p className="text-sm text-cream-100 truncate">{idea.title}</p>
-                    <p className="text-[10px] text-cream-200/40">{formatDate(idea.created_at)}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
       </div>
     </div>
   )
@@ -220,19 +199,15 @@ function StatCard({ label, value, sub, color, pct }: {
   label: string; value: string; sub?: string; color: string; pct?: number | null
 }) {
   return (
-    <div className="bg-navy-800 border border-navy-600 rounded-xl p-5 hover:border-navy-500 transition-colors cursor-pointer h-full">
+    <div className="bg-navy-800 border border-navy-600 rounded-xl p-6 hover:border-navy-500 transition-colors cursor-pointer h-full">
       <p className="text-xs font-medium text-cream-200/50 uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-      {sub && <p className="text-[10px] text-cream-200/40 mt-1">{sub}</p>}
+      <p className={`text-3xl font-bold ${color}`}>{value}</p>
+      {sub && <p className="text-[11px] text-cream-200/40 mt-1">{sub}</p>}
       {pct !== null && pct !== undefined && (
-        <div className="mt-2 h-1 bg-navy-600 rounded-full overflow-hidden">
+        <div className="mt-3 h-1.5 bg-navy-600 rounded-full overflow-hidden">
           <div className="h-full bg-gold-500/60 rounded-full" style={{ width: `${pct}%` }} />
         </div>
       )}
     </div>
   )
-}
-
-function ideaStatusColor(status: string) {
-  return { raw: 'bg-cream-200/30', exploring: 'bg-blue-400', 'in-progress': 'bg-gold-500', implemented: 'bg-emerald-400', shelved: 'bg-navy-500' }[status] ?? 'bg-navy-500'
 }

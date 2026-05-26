@@ -13,16 +13,14 @@ import { formatDate } from '@/lib/utils'
 
 const TYPES: { value: MeetingType; label: string; color: string }[] = [
   { value: 'client-call', label: 'Department Meeting', color: 'bg-blue-500/20 text-blue-300' },
-  { value: 'discovery', label: 'Project Kickoff', color: 'bg-gold-500/20 text-gold-400' },
+  { value: 'discovery', label: 'Project', color: 'bg-gold-500/20 text-gold-400' },
   { value: 'internal', label: 'Internal', color: 'bg-navy-600/80 text-cream-200/60' },
   { value: 'follow-up', label: 'Follow-up', color: 'bg-purple-500/20 text-purple-300' },
-  { value: 'board', label: 'Board / Leadership', color: 'bg-emerald-500/20 text-emerald-300' },
+  { value: 'board', label: 'Leadership', color: 'bg-emerald-500/20 text-emerald-300' },
   { value: 'training', label: 'Training', color: 'bg-orange-500/20 text-orange-300' },
   { value: 'external', label: 'External', color: 'bg-cyan-500/20 text-cyan-300' },
   { value: 'other', label: 'Other', color: 'bg-navy-600/60 text-cream-200/40' },
 ]
-
-const ORGANIZATIONS = ['Goodwill Virginia', 'Board of Directors', 'External Auditors', 'Banking / Finance', 'Government / Regulatory', 'Vendor / Partner', 'Other']
 
 const STATUSES: { value: MeetingStatus; label: string }[] = [
   { value: 'scheduled', label: 'Scheduled' },
@@ -686,13 +684,20 @@ export default function MeetingsPage() {
                     />
                   </div>
                   <div className="flex gap-2">
-                    <select
+                    <input
                       value={attendeeInput.organization}
                       onChange={e => setAttendeeInput(p => ({ ...p, organization: e.target.value }))}
-                      className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 focus:border-gold-500 focus:outline-none"
-                    >
-                      {ORGANIZATIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAttendee())}
+                      placeholder="Organization"
+                      list="org-suggestions"
+                      className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/30 focus:border-gold-500 focus:outline-none"
+                    />
+                    <datalist id="org-suggestions">
+                      <option value="Goodwill Virginia" />
+                      {[...new Set(savedAttendees.map(a => a.organization).filter(Boolean))].map(o => (
+                        <option key={o} value={o!} />
+                      ))}
+                    </datalist>
                     <button onClick={addAttendee} className="bg-navy-600 hover:bg-navy-500 text-cream-100 px-4 py-2 rounded-lg text-xs font-medium transition-colors shrink-0">
                       Add
                     </button>
