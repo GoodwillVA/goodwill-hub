@@ -59,7 +59,7 @@ export default async function DashboardPage() {
       if (!b.due_date) return -1
       return a.due_date.localeCompare(b.due_date)
     })
-    .slice(0, 7)
+    .slice(0, 14)
 
   const easternHour = parseInt(
     new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(new Date())
@@ -136,9 +136,9 @@ export default async function DashboardPage() {
                     )}
                   </li>
                 ))}
-                {(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length > 7 && (
+                {(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length > 14 && (
                   <li className="text-[10px] text-cream-200/30 pl-6">
-                    +{(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length - 7} more pending
+                    +{(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length - 14} more pending
                   </li>
                 )}
               </ul>

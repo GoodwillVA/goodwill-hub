@@ -387,7 +387,7 @@ export default function MonthlyTasksPage() {
                   {tasks.length === 0 ? (
                     <p className="text-cream-200/30 text-sm pt-5 mb-4">No tasks yet — add one below.</p>
                   ) : (
-                    <ul className={`space-y-1 ${isActive && total > 0 ? '' : 'pt-5'} mb-4`}>
+                    <ul className={`space-y-0 ${isActive && total > 0 ? '' : 'pt-5'} mb-4`}>
                       {sortTasks(tasks).map(task => (
                         <li
                           key={task.id}
@@ -398,7 +398,7 @@ export default function MonthlyTasksPage() {
                           }`}
                         >
                           {/* Main task row */}
-                          <div className={`group flex items-center gap-3 py-3 px-3 rounded-lg transition-colors ${
+                          <div className={`group flex items-center gap-3 py-1.5 px-3 rounded-lg transition-colors ${
                             task.completed || notesOpenId === task.id || editingTaskId === task.id ? '' : 'hover:bg-navy-700/50'
                           }`}>
                             {editingTaskId === task.id ? (
