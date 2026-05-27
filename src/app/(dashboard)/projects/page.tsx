@@ -10,10 +10,11 @@ import {
   Sparkles, Send, RotateCcw, BrainCircuit,
 } from 'lucide-react'
 import { formatDate, isOverdue, isDueSoon } from '@/lib/utils'
+import FileAttachments from '@/components/FileAttachments'
 
 const AREAS = ['Accounting', 'Finance', 'Audit', 'IT & Systems', 'Operations', 'HR', 'Other']
 const EMPTY_FORM = { name: '', description: '', area: '', start_date: '', due_date: '' }
-type ProjectTab = 'tasks' | 'meetings' | 'ai'
+type ProjectTab = 'tasks' | 'meetings' | 'files' | 'ai'
 
 type RichProject = Project & {
   tasks: Task[]
@@ -348,6 +349,12 @@ export default function ProjectsPage() {
                       </>
                     )}
                     <button
+                      onClick={() => setTab(project.id, 'files')}
+                      className={`px-5 py-2.5 text-sm font-medium transition-colors ${activeTab === 'files' ? 'text-gold-400 border-b-2 border-gold-500 -mb-px' : 'text-cream-200/50 hover:text-cream-100'}`}
+                    >
+                      Files
+                    </button>
+                    <button
                       onClick={() => setTab(project.id, 'ai')}
                       className={`px-5 py-2.5 text-sm font-medium flex items-center gap-1.5 transition-colors ${activeTab === 'ai' ? 'text-gold-400 border-b-2 border-gold-500 -mb-px' : 'text-cream-200/50 hover:text-cream-100'}`}
                     >
@@ -427,6 +434,13 @@ export default function ProjectsPage() {
                         <a href="/meetings" className="flex items-center gap-1.5 text-sm text-gold-400 hover:text-gold-300 transition-colors">
                           <ArrowRight className="w-4 h-4" /> Add or view meetings in Meetings module
                         </a>
+                      </div>
+                    )}
+
+                    {/* Files */}
+                    {activeTab === 'files' && (
+                      <div className="px-5 py-4">
+                        <FileAttachments entityType="project" entityId={project.id} />
                       </div>
                     )}
 

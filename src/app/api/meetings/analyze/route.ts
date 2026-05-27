@@ -27,15 +27,33 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
 
-  const { transcript, context }: { transcript: string; context: string } = await request.json()
+  const { transcript, context, meetingId }: { transcript: string; context: string; meetingId?: string } = await request.json()
 
   if (!transcript?.trim()) {
     return Response.json({ error: 'No transcript provided' }, { status: 400 })
   }
 
+  // Fetch any file attachments for this meeting to enrich context
+  let attachmentContext = ''
+  if (meetingId) {
+    const { data: attachments } = await supabase
+      .from('attachments')
+      .select('file_name, extracted_text')
+      .eq('entity_type', 'meeting')
+      .eq('entity_id', meetingId)
+    if (attachments && attachments.length > 0) {
+      const parts = attachments
+        .filter(a => a.extracted_text)
+        .map(a => `--- Attached file: ${a.file_name} ---\n${a.extracted_text}`)
+      if (parts.length > 0) {
+        attachmentContext = `\n\nAttached reference documents:\n${parts.join('\n\n')}`
+      }
+    }
+  }
+
   const userMessage = context
-    ? `Meeting context:\n${context}\n\nTranscript:\n${transcript}`
-    : `Transcript:\n${transcript}`
+    ? `Meeting context:\n${context}${attachmentContext}\n\nTranscript:\n${transcript}`
+    : `Transcript:\n${transcript}${attachmentContext}`
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',

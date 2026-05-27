@@ -11,6 +11,7 @@ import {
   Send, RotateCcw, Layers
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import FileAttachments from '@/components/FileAttachments'
 
 const TYPES: { value: MeetingType; label: string; color: string }[] = [
   { value: 'client-call', label: 'Department Meeting', color: 'bg-blue-500/20 text-blue-300' },
@@ -281,7 +282,7 @@ export default function MeetingsPage() {
       const res = await fetch('/api/meetings/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: transcriptDraft.trim(), context }),
+        body: JSON.stringify({ transcript: transcriptDraft.trim(), context, meetingId: selected.id }),
       })
       const data = await res.json()
       if (data.error) { toast.error('Analysis failed'); setAnalyzing(false); return }
@@ -654,6 +655,10 @@ export default function MeetingsPage() {
                 rows={3}
                 className="w-full bg-navy-700 border border-navy-600 rounded-xl text-sm text-cream-100 px-4 py-2.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-none transition-colors"
               />
+            </section>
+
+            <section>
+              <FileAttachments entityType="meeting" entityId={selected.id} />
             </section>
 
             <section>

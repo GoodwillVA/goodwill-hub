@@ -11,11 +11,12 @@ import {
   Users, Plus, X, ChevronDown, ChevronUp,
   Sparkles, Send, RotateCcw, Trash2,
   FileText, ClipboardList, Target, Megaphone, ArrowRight,
-  CheckSquare, Square, CheckCircle2, Circle, CalendarDays,
+  CheckSquare, Square, CheckCircle2, Circle, CalendarDays, Paperclip,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import FileAttachments from '@/components/FileAttachments'
 
-type MemberTab = 'notes' | 'log' | 'goals' | 'manage' | 'ai'
+type MemberTab = 'notes' | 'log' | 'goals' | 'manage' | 'files' | 'ai'
 
 type RichMember = TeamMember & {
   logs: TeamMemberLog[]
@@ -502,6 +503,7 @@ export default function AccountingTeamPage() {
             { key: 'log', label: 'Log', icon: ClipboardList, badge: member.logs.length || undefined },
             { key: 'goals', label: 'Goals', icon: Target, badge: member.goals.length || undefined },
             { key: 'manage', label: 'Manage', icon: CheckSquare, badge: (openAgenda + openAsks) || undefined },
+            { key: 'files', label: 'Files', icon: Paperclip },
             { key: 'ai', label: 'AI', icon: Sparkles },
           ]
 
@@ -816,6 +818,13 @@ export default function AccountingTeamPage() {
                     </div>
                   )}
 
+                  {/* ── Files ── */}
+                  {activeTab === 'files' && (
+                    <div className="px-5 py-4">
+                      <FileAttachments entityType="team_member" entityId={member.id} />
+                    </div>
+                  )}
+
                   {/* ── AI ── */}
                   {activeTab === 'ai' && (
                     <div className="flex flex-col" style={{ height: '540px' }}>
@@ -954,6 +963,16 @@ export default function AccountingTeamPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Team files */}
+        <div className="bg-navy-800 border border-navy-600 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Paperclip className="w-4 h-4 text-gold-400" />
+            <h3 className="text-sm font-semibold text-cream-100">Team Reference Files</h3>
+            <span className="text-xs text-cream-200/30">Shared context for team AI</span>
+          </div>
+          <FileAttachments entityType="team" entityId="accounting-team" />
         </div>
 
         {/* Team meetings */}

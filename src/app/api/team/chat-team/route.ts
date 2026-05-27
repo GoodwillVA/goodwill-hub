@@ -62,13 +62,28 @@ export async function POST(request: Request) {
       ).join('\n')}`
     : ''
 
+  const { data: atts } = await supabase
+    .from('attachments')
+    .select('file_name, mime_type, extracted_text')
+    .eq('entity_type', 'team')
+    .eq('entity_id', 'accounting-team')
+    .order('created_at', { ascending: true })
+
+  const attachmentContext = (atts ?? []).length > 0
+    ? `\n\n## Attached Reference Files\n${(atts ?? []).map((a: { file_name: string; mime_type: string; extracted_text: string | null }) =>
+        a.extracted_text
+          ? `### ${a.file_name}\n${a.extracted_text}`
+          : `[Attached: ${a.file_name} — image or non-extractable file]`
+      ).join('\n\n')}`
+    : ''
+
   const systemPrompt = `You are a management advisor helping Jon Harris, Controller at Goodwill of Central and Coastal Virginia, think strategically about his accounting team as a whole.
 
 ## Team Overview
 
 ${memberContext}${meetingContext}
 
-Help Jon with team-wide thinking: workload distribution, identifying patterns across the team, coaching strategies, team communication, prioritization, identifying who needs support, succession planning, or anything else related to leading his accounting team effectively. Be practical and grounded in nonprofit accounting operations.`
+Help Jon with team-wide thinking: workload distribution, identifying patterns across the team, coaching strategies, team communication, prioritization, identifying who needs support, succession planning, or anything else related to leading his accounting team effectively. Be practical and grounded in nonprofit accounting operations.${attachmentContext}`
 
   const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-6',

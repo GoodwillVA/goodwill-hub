@@ -20,6 +20,21 @@ export async function POST(request: Request) {
 
   const isGeneral = project?.is_general ?? false
 
+  const { data: atts } = await supabase
+    .from('attachments')
+    .select('file_name, mime_type, extracted_text')
+    .eq('entity_type', 'project')
+    .eq('entity_id', projectId)
+    .order('created_at', { ascending: true })
+
+  const attachmentContext = (atts ?? []).length > 0
+    ? `\n\n## Attached Reference Files\n${(atts ?? []).map((a: { file_name: string; mime_type: string; extracted_text: string | null }) =>
+        a.extracted_text
+          ? `### ${a.file_name}\n${a.extracted_text}`
+          : `[Attached: ${a.file_name} — image or non-extractable file]`
+      ).join('\n\n')}`
+    : ''
+
   let systemPrompt: string
 
   if (isGeneral) {
@@ -35,7 +50,7 @@ Jon's focus areas:
 - Team development and cross-department coordination
 - Supporting the CFO with strategic finance decisions
 
-You can help with anything: brainstorming ideas, drafting communications, analyzing problems, working through decisions, or general accounting and finance questions. Be practical, specific, and grounded in nonprofit accounting realities. Reference GAAP, FASB, or controls frameworks where relevant.`
+You can help with anything: brainstorming ideas, drafting communications, analyzing problems, working through decisions, or general accounting and finance questions. Be practical, specific, and grounded in nonprofit accounting realities. Reference GAAP, FASB, or controls frameworks where relevant.${attachmentContext}`
   } else {
     const openTasks = (tasks ?? []).filter((t: { status: string }) => t.status === 'todo')
     const doneTasks = (tasks ?? []).filter((t: { status: string }) => t.status === 'done')
@@ -67,7 +82,7 @@ You can help with anything: brainstorming ideas, drafting communications, analyz
 
 ${contextLines}
 
-Help Jon brainstorm approaches, identify risks, draft communications, think through decisions, and move this project forward. Be specific and practical — Jon is a Controller at a nonprofit, so ground your advice in accounting, finance, and operations realities. Reference GAAP, FASB standards, or controls frameworks where relevant.`
+Help Jon brainstorm approaches, identify risks, draft communications, think through decisions, and move this project forward. Be specific and practical — Jon is a Controller at a nonprofit, so ground your advice in accounting, finance, and operations realities. Reference GAAP, FASB standards, or controls frameworks where relevant.${attachmentContext}`
   }
 
   const stream = anthropic.messages.stream({

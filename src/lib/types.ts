@@ -188,6 +188,18 @@ export interface TeamMemberGoal {
   created_at: string
 }
 
+export interface Attachment {
+  id: string
+  entity_type: 'meeting' | 'project' | 'team_member' | 'team'
+  entity_id: string
+  file_name: string
+  file_size: number
+  mime_type: string
+  storage_path: string
+  extracted_text: string | null
+  created_at: string
+}
+
 export interface DayFocusItem {
   id: string
   focus_date: string          // 'YYYY-MM-DD'

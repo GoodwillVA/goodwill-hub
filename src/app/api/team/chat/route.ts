@@ -11,10 +11,11 @@ export async function POST(request: Request) {
 
   const { messages, memberId }: { messages: ChatMessage[]; memberId: string } = await request.json()
 
-  const [{ data: member }, { data: logs }, { data: goals }] = await Promise.all([
+  const [{ data: member }, { data: logs }, { data: goals }, { data: atts }] = await Promise.all([
     supabase.from('team_members').select('*').eq('id', memberId).single(),
     supabase.from('team_member_logs').select('*').eq('member_id', memberId).order('log_date', { ascending: false }).limit(10),
     supabase.from('team_member_goals').select('*').eq('member_id', memberId).order('created_at', { ascending: true }),
+    supabase.from('attachments').select('file_name, mime_type, extracted_text').eq('entity_type', 'team_member').eq('entity_id', memberId).order('created_at', { ascending: true }),
   ])
 
   const contextLines = [
@@ -29,11 +30,19 @@ export async function POST(request: Request) {
       : 'No goals recorded yet.',
   ].filter(Boolean).join('\n\n')
 
+  const attachmentContext = (atts ?? []).length > 0
+    ? `\n\n## Attached Reference Files\n${(atts ?? []).map((a: { file_name: string; mime_type: string; extracted_text: string | null }) =>
+        a.extracted_text
+          ? `### ${a.file_name}\n${a.extracted_text}`
+          : `[Attached: ${a.file_name} — image or non-extractable file]`
+      ).join('\n\n')}`
+    : ''
+
   const systemPrompt = `You are a management advisor helping Jon Harris, Controller at Goodwill of Central and Coastal Virginia, manage and develop his accounting team.
 
 ${contextLines}
 
-Help Jon think through performance conversations, draft feedback, develop coaching approaches, plan 1:1 agendas, work through team dynamics, recognize strengths, or address any challenge related to leading this team member. Be practical and specific — Jon manages accounting professionals in a nonprofit environment.`
+Help Jon think through performance conversations, draft feedback, develop coaching approaches, plan 1:1 agendas, work through team dynamics, recognize strengths, or address any challenge related to leading this team member. Be practical and specific — Jon manages accounting professionals in a nonprofit environment.${attachmentContext}`
 
   const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-6',

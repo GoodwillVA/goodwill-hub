@@ -16,8 +16,13 @@ export async function POST(request: Request) {
     supabase.from('meetings').select('*').eq('series_id', seriesId).order('meeting_date', { ascending: false }),
   ])
 
+  const meetingIds = (meetings ?? []).map((m: { id: string }) => m.id)
+  const { data: allAtts } = meetingIds.length > 0
+    ? await supabase.from('attachments').select('entity_id, file_name, mime_type, extracted_text').eq('entity_type', 'meeting').in('entity_id', meetingIds).order('created_at', { ascending: true })
+    : { data: [] as { entity_id: string; file_name: string; mime_type: string; extracted_text: string | null }[] }
+
   const meetingContext = (meetings ?? []).map((m: {
-    title: string; meeting_date: string; meeting_time: string | null;
+    id: string; title: string; meeting_date: string; meeting_time: string | null;
     attendees: MeetingAttendee[] | null; notes: string | null;
     summary: string | null; action_items: ActionItem[] | null;
   }) => {
@@ -30,8 +35,15 @@ export async function POST(request: Request) {
       m.summary ? `Summary: ${m.summary}` : '',
       openItems.length > 0 ? `Open action items: ${openItems.map(a => `${a.title}${a.owner ? ` (${a.owner})` : ''}`).join('; ')}` : '',
       doneItems.length > 0 ? `Completed items: ${doneItems.map(a => a.title).join('; ')}` : '',
-    ].filter(Boolean).join('\n')
-    return lines
+    ].filter(Boolean)
+    const mAtts = (allAtts ?? []).filter(a => a.entity_id === m.id)
+    if (mAtts.length > 0) {
+      const textAtts = mAtts.filter(a => a.extracted_text)
+      const imgAtts = mAtts.filter(a => !a.extracted_text)
+      if (textAtts.length > 0) lines.push(textAtts.map(a => `[Attached: ${a.file_name}]\n${a.extracted_text}`).join('\n\n'))
+      if (imgAtts.length > 0) lines.push(`Attached files (no text): ${imgAtts.map(a => a.file_name).join(', ')}`)
+    }
+    return lines.join('\n')
   }).join('\n\n')
 
   const systemPrompt = `You are a meeting advisor helping Jon Harris, Controller at Goodwill of Central and Coastal Virginia, analyze and act on his recurring meeting series.
