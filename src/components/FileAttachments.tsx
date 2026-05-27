@@ -247,7 +247,7 @@ export default function FileAttachments({ entityType, entityId }: Props) {
         </ul>
       )}
       <p className="text-[10px] text-cream-200/20 mt-2">
-        .txt .csv .md .docx .pdf · images stored for reference · max 10 MB
+        Text extracted for AI: .txt .csv .md .docx .pdf · Images stored for reference only · Max 10 MB
       </p>
     </div>
   )
