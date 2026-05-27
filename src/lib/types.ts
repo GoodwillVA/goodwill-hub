@@ -80,6 +80,7 @@ export interface MeetingAttendee {
 export interface MeetingSeries {
   id: string
   name: string
+  ai_thread?: ChatMessage[]
   created_at: string
 }
 

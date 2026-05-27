@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Meeting, MeetingType, MeetingStatus, ActionItem, Project, MeetingAttendee, MeetingSeries, SavedAttendee } from '@/lib/types'
+import { Meeting, MeetingType, MeetingStatus, ActionItem, Project, MeetingAttendee, MeetingSeries, SavedAttendee, ChatMessage } from '@/lib/types'
 import { toast } from 'sonner'
 import {
   Plus, X, CalendarDays, List, ChevronLeft, ChevronRight,
   Clock, FolderKanban, Upload, Sparkles, Copy,
-  CheckCircle2, Circle, Trash2, Pencil, ArrowRight, UserPlus, Tag
+  CheckCircle2, Circle, Trash2, Pencil, ArrowRight, UserPlus, Tag,
+  Send, RotateCcw, Layers
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
@@ -47,7 +48,7 @@ export default function MeetingsPage() {
   const [seriesList, setSeriesList] = useState<MeetingSeries[]>([])
   const [savedAttendees, setSavedAttendees] = useState<SavedAttendee[]>([])
   const [selected, setSelected] = useState<Meeting | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'series'>('list')
   const [calDate, setCalDate] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
   const [showModal, setShowModal] = useState(false)
@@ -65,6 +66,12 @@ export default function MeetingsPage() {
   const [pushingToProject, setPushingToProject] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const [selectedSeries, setSelectedSeries] = useState<MeetingSeries | null>(null)
+  const [seriesAiInputs, setSeriesAiInputs] = useState<Record<string, string>>({})
+  const [seriesAiThreads, setSeriesAiThreads] = useState<Record<string, ChatMessage[]>>({})
+  const [seriesStreamingFor, setSeriesStreamingFor] = useState<string | null>(null)
+  const [seriesStreamingText, setSeriesStreamingText] = useState('')
+  const seriesAiEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { load() }, [])
   useEffect(() => {
@@ -72,6 +79,9 @@ export default function MeetingsPage() {
     setTranscriptDraft(selected?.transcript ?? '')
     setActionItems(selected?.action_items ?? [])
   }, [selected?.id])
+  useEffect(() => {
+    seriesAiEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [seriesAiThreads, seriesStreamingText])
 
   async function load() {
     const [{ data: m }, { data: p }, { data: s }, { data: sa }] = await Promise.all([
@@ -84,6 +94,7 @@ export default function MeetingsPage() {
     setProjects(p ?? [])
     setSeriesList(s ?? [])
     setSavedAttendees(sa ?? [])
+    setSeriesAiThreads(Object.fromEntries((s ?? []).map((ser: MeetingSeries) => [ser.id, ser.ai_thread ?? []])))
   }
 
   function openAdd() {
@@ -324,6 +335,49 @@ export default function MeetingsPage() {
     setPushingToProject(false)
   }
 
+  async function sendSeriesAiMessage(seriesId: string) {
+    const input = (seriesAiInputs[seriesId] ?? '').trim()
+    if (!input || seriesStreamingFor) return
+    const userMsg: ChatMessage = { role: 'user', content: input }
+    const currentThread = seriesAiThreads[seriesId] ?? []
+    const newThread = [...currentThread, userMsg]
+    setSeriesAiThreads(prev => ({ ...prev, [seriesId]: newThread }))
+    setSeriesAiInputs(prev => ({ ...prev, [seriesId]: '' }))
+    setSeriesStreamingFor(seriesId)
+    setSeriesStreamingText('')
+    try {
+      const res = await fetch('/api/meetings/series-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: newThread, seriesId }),
+      })
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let full = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        full += decoder.decode(value, { stream: true })
+        setSeriesStreamingText(full)
+      }
+      const assistantMsg: ChatMessage = { role: 'assistant', content: full }
+      const finalThread = [...newThread, assistantMsg]
+      setSeriesAiThreads(prev => ({ ...prev, [seriesId]: finalThread }))
+      await supabase.from('meeting_series').update({ ai_thread: finalThread }).eq('id', seriesId)
+      setSeriesList(prev => prev.map(s => s.id === seriesId ? { ...s, ai_thread: finalThread } : s))
+    } catch {
+      toast.error('AI request failed')
+    }
+    setSeriesStreamingFor(null)
+    setSeriesStreamingText('')
+  }
+
+  async function clearSeriesAiThread(seriesId: string) {
+    setSeriesAiThreads(prev => ({ ...prev, [seriesId]: [] }))
+    await supabase.from('meeting_series').update({ ai_thread: [] }).eq('id', seriesId)
+    setSeriesList(prev => prev.map(s => s.id === seriesId ? { ...s, ai_thread: [] } : s))
+  }
+
   // Calendar helpers
   const calYear = calDate.getFullYear()
   const calMonth = calDate.getMonth()
@@ -373,7 +427,10 @@ export default function MeetingsPage() {
               <List className="w-3.5 h-3.5" /> List
             </button>
             <button onClick={() => setViewMode('calendar')} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'calendar' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
-              <CalendarDays className="w-3.5 h-3.5" /> Calendar
+              <CalendarDays className="w-3.5 h-3.5" /> Cal
+            </button>
+            <button onClick={() => { setViewMode('series'); setSelected(null) }} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'series' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
+              <Layers className="w-3.5 h-3.5" /> Series
             </button>
           </div>
         </div>
@@ -409,34 +466,160 @@ export default function MeetingsPage() {
           </div>
         )}
 
-        <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
-          {filteredMeetings.length === 0 && <li className="p-4 text-sm text-cream-200/40">No meetings{selectedDay ? ' on this day' : ''}.</li>}
-          {filteredMeetings.map(m => (
-            <li key={m.id} onClick={() => setSelected(m)}
-              className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
-            >
-              <div className="flex items-start justify-between gap-1">
-                <p className="text-sm text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{m.title}</p>
-                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
-              </div>
-              <div className="flex items-center gap-2 mt-1 text-[10px] text-cream-200/40">
-                <span>{formatDate(m.meeting_date)}</span>
-                {m.meeting_time && <span>{m.meeting_time.slice(0, 5)}</span>}
-                {m.series && <span className="flex items-center gap-0.5"><Tag className="w-2.5 h-2.5" />{(m.series as MeetingSeries).name}</span>}
-                {m.summary && <span className="ml-auto">✓ AI</span>}
-              </div>
-              {m.attendees?.length > 0 && (
-                <p className="text-[10px] text-cream-200/30 mt-0.5 truncate">
-                  {m.attendees.map(a => a.name).join(', ')}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
+        {viewMode === 'series' ? (
+          <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
+            {seriesList.length === 0 ? (
+              <li className="p-4 text-sm text-cream-200/40">No series yet. Assign a meeting to a series to get started.</li>
+            ) : seriesList.map(s => {
+              const count = meetings.filter(m => m.series_id === s.id).length
+              return (
+                <li key={s.id} onClick={() => setSelectedSeries(s)}
+                  className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${selectedSeries?.id === s.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-3 h-3 text-gold-500/60 shrink-0" />
+                    <p className="text-sm text-cream-100 font-medium">{s.name}</p>
+                  </div>
+                  <p className="text-[10px] text-cream-200/40 mt-0.5 pl-5">{count} meeting{count !== 1 ? 's' : ''}{(seriesAiThreads[s.id] ?? []).length > 0 ? ' · AI active' : ''}</p>
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
+            {filteredMeetings.length === 0 && <li className="p-4 text-sm text-cream-200/40">No meetings{selectedDay ? ' on this day' : ''}.</li>}
+            {filteredMeetings.map(m => (
+              <li key={m.id} onClick={() => setSelected(m)}
+                className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-1">
+                  <p className="text-sm text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{m.title}</p>
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1 text-[10px] text-cream-200/40">
+                  <span>{formatDate(m.meeting_date)}</span>
+                  {m.meeting_time && <span>{m.meeting_time.slice(0, 5)}</span>}
+                  {m.series && <span className="flex items-center gap-0.5"><Tag className="w-2.5 h-2.5" />{(m.series as MeetingSeries).name}</span>}
+                  {m.summary && <span className="ml-auto">✓ AI</span>}
+                </div>
+                {m.attendees?.length > 0 && (
+                  <p className="text-[10px] text-cream-200/30 mt-0.5 truncate">
+                    {m.attendees.map(a => a.name).join(', ')}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Right panel */}
-      {selected ? (
+      {viewMode === 'series' && selectedSeries ? (
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+          <div className="p-5 border-b border-navy-600 sticky top-0 bg-navy-900 z-10">
+            <div className="flex items-center gap-2 mb-1">
+              <Layers className="w-4 h-4 text-gold-500" />
+              <h2 className="text-lg font-bold text-cream-100">{selectedSeries.name}</h2>
+            </div>
+            <p className="text-xs text-cream-200/40">
+              {meetings.filter(m => m.series_id === selectedSeries.id).length} meetings in this series
+            </p>
+          </div>
+          <div className="p-5 space-y-6">
+            {/* Series AI */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Series AI Advisor</p>
+                {(seriesAiThreads[selectedSeries.id] ?? []).length > 0 && (
+                  <button onClick={() => clearSeriesAiThread(selectedSeries.id)}
+                    className="flex items-center gap-1 text-[10px] text-cream-200/30 hover:text-cream-200/60 transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Clear
+                  </button>
+                )}
+              </div>
+              <div className="bg-navy-800 border border-navy-600 rounded-xl overflow-hidden">
+                <div className="h-80 overflow-y-auto p-4 space-y-3">
+                  {(seriesAiThreads[selectedSeries.id] ?? []).length === 0 && seriesStreamingFor !== selectedSeries.id ? (
+                    <p className="text-sm text-cream-200/30 text-center py-8">Ask about patterns across meetings, recurring topics, progress on action items, or get help drafting an agenda for the next session.</p>
+                  ) : (
+                    <>
+                      {(seriesAiThreads[selectedSeries.id] ?? []).map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-gold-500/20 text-cream-100' : 'bg-navy-700 text-cream-100'}`}>
+                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {seriesStreamingFor === selectedSeries.id && (
+                        <div className="flex justify-start">
+                          <div className="max-w-[85%] rounded-xl px-3 py-2 text-sm bg-navy-700 text-cream-100 leading-relaxed">
+                            <p className="whitespace-pre-wrap">{seriesStreamingText || '…'}</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <div ref={seriesAiEndRef} />
+                </div>
+                <div className="border-t border-navy-600 p-3 flex gap-2">
+                  <input
+                    value={seriesAiInputs[selectedSeries.id] ?? ''}
+                    onChange={e => setSeriesAiInputs(prev => ({ ...prev, [selectedSeries!.id]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendSeriesAiMessage(selectedSeries.id))}
+                    placeholder="Ask about this meeting series…"
+                    disabled={!!seriesStreamingFor}
+                    className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none disabled:opacity-50"
+                  />
+                  <button
+                    onClick={() => sendSeriesAiMessage(selectedSeries.id)}
+                    disabled={!seriesAiInputs[selectedSeries.id]?.trim() || !!seriesStreamingFor}
+                    className="bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-navy-900 p-2 rounded-lg transition-colors"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </section>
+            {/* Meetings in series */}
+            <section>
+              <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-3">Meetings in Series</p>
+              {meetings.filter(m => m.series_id === selectedSeries.id).length === 0 ? (
+                <p className="text-sm text-cream-200/30">No meetings in this series yet. When adding a meeting, select this series from the Meeting Series dropdown.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {meetings
+                    .filter(m => m.series_id === selectedSeries.id)
+                    .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date))
+                    .map(m => {
+                      const openItems = m.action_items.filter(a => !a.done)
+                      return (
+                        <li key={m.id}
+                          onClick={() => { setViewMode('list'); setSelected(m) }}
+                          className="p-3 bg-navy-800 border border-navy-600 rounded-xl cursor-pointer hover:border-navy-500 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm text-cream-100 font-medium">{m.title}</p>
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-cream-200/40">
+                            <span>{formatDate(m.meeting_date)}</span>
+                            {m.meeting_time && <span>{m.meeting_time.slice(0, 5)}</span>}
+                            {m.summary && <span className="text-emerald-400/60">✓ Summary</span>}
+                            {openItems.length > 0 && <span className="text-gold-400/60">{openItems.length} open action{openItems.length !== 1 ? 's' : ''}</span>}
+                          </div>
+                          {m.summary && <p className="text-[10px] text-cream-200/30 mt-1 line-clamp-2">{m.summary}</p>}
+                          {m.attendees?.length > 0 && <p className="text-[10px] text-cream-200/25 mt-0.5 truncate">{m.attendees.map(a => a.name).join(', ')}</p>}
+                        </li>
+                      )
+                    })
+                  }
+                </ul>
+              )}
+            </section>
+          </div>
+        </div>
+      ) : selected ? (
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           <div className="p-5 border-b border-navy-600 sticky top-0 bg-navy-900 z-10">
             <div className="flex items-start justify-between gap-4 mb-2">
@@ -555,7 +738,7 @@ export default function MeetingsPage() {
         <div className="flex-1 flex items-center justify-center text-cream-200/30">
           <div className="text-center">
             <CalendarDays className="w-10 h-10 mx-auto mb-3 text-gold-500/20" />
-            <p className="text-sm">Select a meeting or add a new one</p>
+            <p className="text-sm">{viewMode === 'series' ? 'Select a series from the left panel' : 'Select a meeting or add a new one'}</p>
           </div>
         </div>
       )}
