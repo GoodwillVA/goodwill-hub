@@ -455,45 +455,45 @@ export default function MeetingsPage() {
   return (
     <div className="flex h-full">
       {/* Left panel */}
-      <div className={`${viewMode === 'list' ? 'w-[42rem]' : 'w-[27rem]'} shrink-0 border-r border-navy-600 flex flex-col h-full`}>
-        <div className="p-4 border-b border-navy-600">
-          <div className="flex items-center justify-between mb-3">
-            <h1 className="text-base font-bold text-cream-100 flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-gold-500" /> Meetings
+      <div className={`${viewMode === 'list' ? 'w-[58rem]' : 'w-[30rem]'} shrink-0 border-r border-navy-600 flex flex-col h-full`}>
+        <div className="p-5 border-b border-navy-600">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-lg font-bold text-cream-100 flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-gold-500" /> Meetings
             </h1>
-            <button onClick={openAdd} className="flex items-center gap-1 text-xs bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-2.5 py-1.5 rounded-lg transition-colors">
-              <Plus className="w-3.5 h-3.5" /> Add
+            <button onClick={openAdd} className="flex items-center gap-1.5 text-sm bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-4 py-2 rounded-lg transition-colors">
+              <Plus className="w-4 h-4" /> Add
             </button>
           </div>
           <div className="flex rounded-lg overflow-hidden border border-navy-600">
-            <button onClick={() => setViewMode('list')} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'list' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
-              <List className="w-3.5 h-3.5" /> List
+            <button onClick={() => setViewMode('list')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
+              <List className="w-4 h-4" /> List
             </button>
-            <button onClick={() => setViewMode('calendar')} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'calendar' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
-              <CalendarDays className="w-3.5 h-3.5" /> Cal
+            <button onClick={() => setViewMode('calendar')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
+              <CalendarDays className="w-4 h-4" /> Cal
             </button>
-            <button onClick={() => { setViewMode('series'); setSelected(null) }} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'series' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
-              <Layers className="w-3.5 h-3.5" /> Series
+            <button onClick={() => { setViewMode('series'); setSelected(null) }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors ${viewMode === 'series' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
+              <Layers className="w-4 h-4" /> Series
             </button>
           </div>
         </div>
 
         {viewMode !== 'series' && (
-          <div className="px-4 py-2 border-b border-navy-600">
+          <div className="px-5 py-3 border-b border-navy-600">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-cream-200/30 pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cream-200/30 pointer-events-none" />
               <input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search by title or attendee…"
-                className="w-full bg-navy-700 border border-navy-600 rounded-lg text-xs text-cream-100 pl-7 pr-7 py-1.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none transition-colors"
+                className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 pl-9 pr-9 py-2.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none transition-colors"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-cream-200/30 hover:text-cream-200/70 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-cream-200/30 hover:text-cream-200/70 transition-colors"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -554,28 +554,28 @@ export default function MeetingsPage() {
           <div className="flex-1 overflow-hidden flex min-h-0">
             {/* Upcoming column */}
             <div className="flex-1 flex flex-col border-r border-navy-600/50 min-w-0">
-              <div className="px-3 py-1.5 border-b border-navy-600 shrink-0">
-                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider flex items-center gap-1.5">
+              <div className="px-4 py-2.5 border-b border-navy-600 shrink-0">
+                <p className="text-xs font-semibold text-cream-200/40 uppercase tracking-wider flex items-center gap-1.5">
                   Upcoming <span className="font-normal normal-case tracking-normal text-cream-200/25">{upcomingMeetings.length}</span>
                 </p>
               </div>
               <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
                 {upcomingMeetings.length === 0 && (
-                  <li className="px-3 py-6 text-xs text-cream-200/30 text-center">No upcoming meetings.</li>
+                  <li className="px-4 py-8 text-sm text-cream-200/30 text-center">No upcoming meetings.</li>
                 )}
                 {upcomingMeetings.map(m => (
                   <li key={m.id} onClick={() => setSelected(m)}
-                    className={`p-2.5 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
+                    className={`p-4 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
                   >
-                    <div className="flex items-start justify-between gap-1 mb-0.5">
-                      <p className="text-xs text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{m.title}</p>
-                      <span className={`text-[9px] font-medium px-1 py-0.5 rounded shrink-0 ml-1 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-sm text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{m.title}</p>
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded shrink-0 ml-1 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
                     </div>
-                    <p className="text-[10px] text-cream-200/40">
+                    <p className="text-xs text-cream-200/40">
                       {formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}{m.summary ? ' · ✓' : ''}
                     </p>
                     {m.attendees?.length > 0 && (
-                      <p className="text-[10px] text-cream-200/25 truncate mt-0.5">{m.attendees.map(a => a.name).join(', ')}</p>
+                      <p className="text-xs text-cream-200/30 truncate mt-0.5">{m.attendees.map(a => a.name).join(', ')}</p>
                     )}
                   </li>
                 ))}
@@ -583,28 +583,28 @@ export default function MeetingsPage() {
             </div>
             {/* Past column */}
             <div className="flex-1 flex flex-col min-w-0">
-              <div className="px-3 py-1.5 border-b border-navy-600 shrink-0">
-                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider flex items-center gap-1.5">
+              <div className="px-4 py-2.5 border-b border-navy-600 shrink-0">
+                <p className="text-xs font-semibold text-cream-200/40 uppercase tracking-wider flex items-center gap-1.5">
                   Past <span className="font-normal normal-case tracking-normal text-cream-200/25">{pastMeetings.length}</span>
                 </p>
               </div>
               <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
                 {pastMeetings.length === 0 && (
-                  <li className="px-3 py-6 text-xs text-cream-200/30 text-center">No past meetings.</li>
+                  <li className="px-4 py-8 text-sm text-cream-200/30 text-center">No past meetings.</li>
                 )}
                 {pastMeetings.map(m => (
                   <li key={m.id} onClick={() => setSelected(m)}
-                    className={`p-2.5 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
+                    className={`p-4 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
                   >
-                    <div className="flex items-start justify-between gap-1 mb-0.5">
-                      <p className="text-xs text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{m.title}</p>
-                      <span className={`text-[9px] font-medium px-1 py-0.5 rounded shrink-0 ml-1 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-sm text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{m.title}</p>
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded shrink-0 ml-1 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
                     </div>
-                    <p className="text-[10px] text-cream-200/40">
+                    <p className="text-xs text-cream-200/40">
                       {formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}{m.summary ? ' · ✓' : ''}
                     </p>
                     {m.attendees?.length > 0 && (
-                      <p className="text-[10px] text-cream-200/25 truncate mt-0.5">{m.attendees.map(a => a.name).join(', ')}</p>
+                      <p className="text-xs text-cream-200/30 truncate mt-0.5">{m.attendees.map(a => a.name).join(', ')}</p>
                     )}
                   </li>
                 ))}
@@ -753,24 +753,24 @@ export default function MeetingsPage() {
         </div>
       ) : selected ? (
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-          <div className="p-5 border-b border-navy-600 sticky top-0 bg-navy-900 z-10">
-            <div className="flex items-start justify-between gap-4 mb-2">
-              <h2 className="text-lg font-bold text-cream-100 leading-snug">{selected.title}</h2>
+          <div className="p-6 border-b border-navy-600 sticky top-0 bg-navy-900 z-10">
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <h2 className="text-2xl font-bold text-cream-100 leading-snug">{selected.title}</h2>
               <div className="flex gap-1 shrink-0">
-                <button onClick={() => openEdit(selected)} className="text-cream-200/40 hover:text-cream-100 p-1.5 rounded hover:bg-navy-700 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                <button onClick={() => deleteMeeting(selected.id)} className="text-cream-200/40 hover:text-red-400 p-1.5 rounded hover:bg-navy-700 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                <button onClick={() => openEdit(selected)} className="text-cream-200/40 hover:text-cream-100 p-2 rounded hover:bg-navy-700 transition-colors"><Pencil className="w-5 h-5" /></button>
+                <button onClick={() => deleteMeeting(selected.id)} className="text-cream-200/40 hover:text-red-400 p-2 rounded hover:bg-navy-700 transition-colors"><Trash2 className="w-5 h-5" /></button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-cream-200/50">
-              <span className={`font-medium px-2 py-0.5 rounded ${typeObj(selected.type).color}`}>{typeObj(selected.type).label}</span>
-              <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDate(selected.meeting_date)}{selected.meeting_time ? ` · ${selected.meeting_time.slice(0, 5)}` : ''}{selected.duration_minutes ? ` · ${selected.duration_minutes}min` : ''}</span>
-              {selected.project && <span className="flex items-center gap-1"><FolderKanban className="w-3 h-3" />{(selected.project as { name: string }).name}</span>}
-              {selected.series && <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{(selected.series as MeetingSeries).name}</span>}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-cream-200/50">
+              <span className={`font-medium px-2.5 py-1 rounded ${typeObj(selected.type).color}`}>{typeObj(selected.type).label}</span>
+              <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" />{formatDate(selected.meeting_date)}{selected.meeting_time ? ` · ${selected.meeting_time.slice(0, 5)}` : ''}{selected.duration_minutes ? ` · ${selected.duration_minutes}min` : ''}</span>
+              {selected.project && <span className="flex items-center gap-1.5"><FolderKanban className="w-4 h-4" />{(selected.project as { name: string }).name}</span>}
+              {selected.series && <span className="flex items-center gap-1.5"><Tag className="w-4 h-4" />{(selected.series as MeetingSeries).name}</span>}
             </div>
             {selected.attendees?.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
+              <div className="flex flex-wrap gap-2 mt-3">
                 {selected.attendees.map(a => (
-                  <span key={a.name} className="text-[10px] bg-navy-700 border border-navy-600 text-cream-200/70 rounded-full px-2.5 py-1">
+                  <span key={a.name} className="text-xs bg-navy-700 border border-navy-600 text-cream-200/70 rounded-full px-3 py-1.5">
                     {a.name}{a.position ? ` · ${a.position}` : ''}{a.organization && a.organization !== 'Goodwill Virginia' ? ` · ${a.organization}` : ''}
                   </span>
                 ))}
@@ -778,13 +778,13 @@ export default function MeetingsPage() {
             )}
           </div>
 
-          <div className="p-5 space-y-6">
+          <div className="p-6 space-y-8">
             <section>
-              <label className="block text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-2">Pre-meeting Notes / Agenda</label>
+              <label className="block text-sm font-semibold text-cream-200/40 uppercase tracking-wider mb-3">Pre-meeting Notes / Agenda</label>
               <textarea value={notesDraft} onChange={e => setNotesDraft(e.target.value)} onBlur={saveNotes}
                 placeholder="Agenda, talking points, questions to ask… (saves automatically)"
-                rows={3}
-                className="w-full bg-navy-700 border border-navy-600 rounded-xl text-sm text-cream-100 px-4 py-2.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-none transition-colors"
+                rows={4}
+                className="w-full bg-navy-700 border border-navy-600 rounded-xl text-base text-cream-100 px-4 py-3 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-none transition-colors"
               />
             </section>
 
@@ -793,19 +793,19 @@ export default function MeetingsPage() {
             </section>
 
             <section>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Transcript</label>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-semibold text-cream-200/40 uppercase tracking-wider">Transcript</label>
                 <div className="flex items-center gap-2">
                   <input ref={fileInputRef} type="file" accept=".txt,.docx" onChange={handleFileUpload} className="hidden" />
-                  <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-[10px] bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-2 py-1 rounded-lg transition-colors">
-                    <Upload className="w-3 h-3" /> Upload .txt / .docx
+                  <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-xs bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-3 py-1.5 rounded-lg transition-colors">
+                    <Upload className="w-3.5 h-3.5" /> Upload .txt / .docx
                   </button>
                 </div>
               </div>
               <textarea value={transcriptDraft} onChange={e => setTranscriptDraft(e.target.value)} onBlur={saveTranscript}
                 placeholder="Paste your meeting transcript here, or upload a file above…"
                 rows={6}
-                className="w-full bg-navy-700 border border-navy-600 rounded-xl text-sm text-cream-100 px-4 py-2.5 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-y transition-colors font-mono text-xs leading-relaxed"
+                className="w-full bg-navy-700 border border-navy-600 rounded-xl text-sm text-cream-100 px-4 py-3 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-y transition-colors font-mono leading-relaxed"
               />
               {transcriptDraft.trim() && (
                 <button onClick={analyzeTranscript} disabled={analyzing}
@@ -819,34 +819,34 @@ export default function MeetingsPage() {
 
             {selected.summary && (
               <section>
-                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-2">AI Summary</p>
-                <div className="bg-navy-700 border border-navy-600 rounded-xl p-4 text-sm text-cream-100 leading-relaxed">{selected.summary}</div>
+                <p className="text-sm font-semibold text-cream-200/40 uppercase tracking-wider mb-3">AI Summary</p>
+                <div className="bg-navy-700 border border-navy-600 rounded-xl p-5 text-base text-cream-100 leading-relaxed">{selected.summary}</div>
               </section>
             )}
 
             {actionItems.length > 0 && (
               <section>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Action Items</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-cream-200/40 uppercase tracking-wider">Action Items</p>
                   {selected.project_id && (
                     <button onClick={pushTasksToProject} disabled={pushingToProject || actionItems.every(a => a.done)}
-                      className="flex items-center gap-1 text-[10px] bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 disabled:opacity-40 px-2 py-1 rounded-lg transition-colors"
+                      className="flex items-center gap-1.5 text-xs bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 disabled:opacity-40 px-3 py-1.5 rounded-lg transition-colors"
                     >
-                      <ArrowRight className="w-3 h-3" /> Push to Project
+                      <ArrowRight className="w-3.5 h-3.5" /> Push to Project
                     </button>
                   )}
                 </div>
                 <ul className="space-y-2">
                   {actionItems.map(item => (
-                    <li key={item.id} className="flex items-start gap-3 p-3 bg-navy-700 rounded-xl border border-navy-600">
+                    <li key={item.id} className="flex items-start gap-3 p-4 bg-navy-700 rounded-xl border border-navy-600">
                       <button onClick={() => toggleActionItem(item)} className="mt-0.5 shrink-0">
-                        {item.done ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Circle className="w-4 h-4 text-cream-200/30 hover:text-cream-200/60" />}
+                        {item.done ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <Circle className="w-5 h-5 text-cream-200/30 hover:text-cream-200/60" />}
                       </button>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm ${item.done ? 'line-through text-cream-200/30' : 'text-cream-100'}`}>{item.title}</p>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          {item.owner && <span className="text-[10px] text-cream-200/40">{item.owner}</span>}
-                          {item.due_date && <span className="text-[10px] text-gold-400/70">{formatDate(item.due_date)}</span>}
+                        <p className={`text-base ${item.done ? 'line-through text-cream-200/30' : 'text-cream-100'}`}>{item.title}</p>
+                        <div className="flex items-center gap-3 mt-1">
+                          {item.owner && <span className="text-sm text-cream-200/40">{item.owner}</span>}
+                          {item.due_date && <span className="text-sm text-gold-400/70">{formatDate(item.due_date)}</span>}
                         </div>
                       </div>
                     </li>
@@ -857,15 +857,15 @@ export default function MeetingsPage() {
 
             {selected.followup_email && (
               <section>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">Follow-up Email Draft</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-cream-200/40 uppercase tracking-wider">Follow-up Email Draft</p>
                   <button onClick={() => { navigator.clipboard.writeText(selected.followup_email ?? ''); toast.success('Copied to clipboard') }}
-                    className="flex items-center gap-1 text-[10px] bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-2 py-1 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 text-xs bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-3 py-1.5 rounded-lg transition-colors"
                   >
-                    <Copy className="w-3 h-3" /> Copy
+                    <Copy className="w-3.5 h-3.5" /> Copy
                   </button>
                 </div>
-                <pre className="whitespace-pre-wrap font-sans text-sm text-cream-100 bg-navy-700 border border-navy-600 rounded-xl p-4 leading-relaxed">{selected.followup_email}</pre>
+                <pre className="whitespace-pre-wrap font-sans text-base text-cream-100 bg-navy-700 border border-navy-600 rounded-xl p-5 leading-relaxed">{selected.followup_email}</pre>
               </section>
             )}
           </div>
@@ -873,8 +873,8 @@ export default function MeetingsPage() {
       ) : (
         <div className="flex-1 flex items-center justify-center text-cream-200/30">
           <div className="text-center">
-            <CalendarDays className="w-10 h-10 mx-auto mb-3 text-gold-500/20" />
-            <p className="text-sm">{viewMode === 'series' ? 'Select a series from the left panel' : 'Select a meeting or add a new one'}</p>
+            <CalendarDays className="w-14 h-14 mx-auto mb-4 text-gold-500/20" />
+            <p className="text-base">{viewMode === 'series' ? 'Select a series from the left panel' : 'Select a meeting or add a new one'}</p>
           </div>
         </div>
       )}
