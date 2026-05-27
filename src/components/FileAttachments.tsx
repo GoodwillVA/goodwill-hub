@@ -72,7 +72,7 @@ async function extractText(file: File): Promise<string | null> {
 }
 
 interface Props {
-  entityType: 'meeting' | 'project' | 'team_member' | 'team'
+  entityType: 'meeting' | 'project' | 'team_member' | 'team' | 'series'
   entityId: string
 }
 

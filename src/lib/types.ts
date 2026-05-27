@@ -190,7 +190,7 @@ export interface TeamMemberGoal {
 
 export interface Attachment {
   id: string
-  entity_type: 'meeting' | 'project' | 'team_member' | 'team'
+  entity_type: 'meeting' | 'project' | 'team_member' | 'team' | 'series'
   entity_id: string
   file_name: string
   file_size: number

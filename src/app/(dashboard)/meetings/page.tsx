@@ -582,6 +582,11 @@ export default function MeetingsPage() {
                 </div>
               </div>
             </section>
+            {/* Series-level file attachments */}
+            <section>
+              <FileAttachments entityType="series" entityId={selectedSeries.id} />
+            </section>
+
             {/* Meetings in series */}
             <section>
               <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-3">Meetings in Series</p>

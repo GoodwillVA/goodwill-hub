@@ -18,24 +18,41 @@ export async function POST(request: Request) {
   ])
 
   const meetingIds = (meetings ?? []).map((m: { id: string }) => m.id)
-  const { data: allAtts } = meetingIds.length > 0
-    ? await supabase.from('attachments').select('entity_id, file_name, mime_type, extracted_text, storage_path').eq('entity_type', 'meeting').in('entity_id', meetingIds).order('created_at', { ascending: true })
-    : { data: [] as { entity_id: string; file_name: string; mime_type: string; extracted_text: string | null; storage_path: string }[] }
 
-  // Fetch all image attachments across the series for vision context
-  const imageAtts = (allAtts ?? []).filter(a => a.mime_type.startsWith('image/') && !a.extracted_text)
+  // Fetch per-meeting attachments AND series-level attachments in parallel
+  const [{ data: allAtts }, { data: seriesAtts }] = await Promise.all([
+    meetingIds.length > 0
+      ? supabase.from('attachments').select('entity_id, file_name, mime_type, extracted_text, storage_path').eq('entity_type', 'meeting').in('entity_id', meetingIds).order('created_at', { ascending: true })
+      : { data: [] as { entity_id: string; file_name: string; mime_type: string; extracted_text: string | null; storage_path: string }[] },
+    supabase.from('attachments').select('file_name, mime_type, extracted_text, storage_path').eq('entity_type', 'series').eq('entity_id', seriesId).order('created_at', { ascending: true }),
+  ])
+
+  // Collect all image attachments (series-level + per-meeting) for vision
+  const meetingImageAtts = (allAtts ?? []).filter(a => a.mime_type.startsWith('image/') && !a.extracted_text)
+  const seriesImageAtts = (seriesAtts ?? []).filter((a: { mime_type: string; extracted_text: string | null }) => a.mime_type.startsWith('image/') && !a.extracted_text)
+  const allImageAtts = [
+    ...seriesImageAtts.map((a: { file_name: string; mime_type: string; storage_path: string }) => a),
+    ...meetingImageAtts,
+  ]
+
   let imageBlocks: ImageBlock[] = []
-  if (imageAtts.length > 0) {
+  if (allImageAtts.length > 0) {
     const signed = await Promise.all(
-      imageAtts.map(a => supabase.storage.from('attachments').createSignedUrl(a.storage_path, 120))
+      allImageAtts.map(a => supabase.storage.from('attachments').createSignedUrl(a.storage_path, 120))
     )
     const fetched = await Promise.all(
       signed.map((s: { data: { signedUrl: string } | null }, i: number) =>
-        s.data?.signedUrl ? fetchImageBlock(s.data.signedUrl, imageAtts[i].mime_type) : null
+        s.data?.signedUrl ? fetchImageBlock(s.data.signedUrl, allImageAtts[i].mime_type) : null
       )
     )
     imageBlocks = fetched.filter((b): b is ImageBlock => b !== null)
   }
+
+  // Build series-level text attachment context
+  const seriesTextAtts = (seriesAtts ?? []).filter((a: { extracted_text: string | null }) => a.extracted_text)
+  const seriesAttachmentContext = seriesTextAtts.length > 0
+    ? `\n\n## Series Reference Files\n${seriesTextAtts.map((a: { file_name: string; extracted_text: string | null }) => `### ${a.file_name}\n${a.extracted_text}`).join('\n\n')}`
+    : ''
 
   const meetingContext = (meetings ?? []).map((m: {
     id: string; title: string; meeting_date: string; meeting_time: string | null;
@@ -67,7 +84,7 @@ export async function POST(request: Request) {
 Series: ${series?.name ?? 'Unknown'}
 Total meetings: ${(meetings ?? []).length}
 
-${meetingContext || 'No meeting details available yet.'}
+${meetingContext || 'No meeting details available yet.'}${seriesAttachmentContext}
 
 Help Jon identify patterns across meetings in this series, track progress on recurring action items, spot topics that keep resurfacing, summarize what's been decided or agreed, draft agendas for upcoming sessions, or provide any other insight about this series. Be specific — reference actual meetings, dates, and items from the context above.`
 
