@@ -51,7 +51,15 @@ export default async function DashboardPage() {
   const dueSoonProjects = (projects ?? []).filter(
     (p: Project) => (isDueSoon(p.due_date ?? undefined) || isOverdue(p.due_date ?? undefined)) && p.status !== 'delivered' && !p.is_general
   )
-  const pendingCloseTasks = (closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).slice(0, 7)
+  const pendingCloseTasks = (closeTasks ?? [])
+    .filter((t: MonthlyTask) => !t.completed)
+    .sort((a: MonthlyTask, b: MonthlyTask) => {
+      if (!a.due_date && !b.due_date) return 0
+      if (!a.due_date) return 1
+      if (!b.due_date) return -1
+      return a.due_date.localeCompare(b.due_date)
+    })
+    .slice(0, 7)
 
   const easternHour = parseInt(
     new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(new Date())
@@ -121,7 +129,11 @@ export default async function DashboardPage() {
                   <li key={task.id} className="flex items-center gap-2.5">
                     <Circle className="w-3.5 h-3.5 text-cream-200/30 shrink-0" />
                     <span className="text-sm text-cream-100 flex-1 truncate">{task.title}</span>
-                    {task.due_date && <span className="text-[10px] text-gold-400/70 shrink-0">{formatDate(task.due_date)}</span>}
+                    {task.due_date && (
+                      <span className={`text-[10px] shrink-0 font-medium ${isOverdue(task.due_date) ? 'text-red-400' : 'text-gold-400/70'}`}>
+                        {formatDate(task.due_date)}
+                      </span>
+                    )}
                   </li>
                 ))}
                 {(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length > 7 && (
