@@ -37,6 +37,22 @@ function formatDueDate(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+function formatCompletedAt(isoStr: string): string {
+  return new Date(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function sortTasks(tasks: MonthlyTask[]): MonthlyTask[] {
+  return [...tasks].sort((a, b) => {
+    // Incomplete tasks first
+    if (a.completed !== b.completed) return a.completed ? 1 : -1
+    // Within each group: sort by due date ascending, nulls at end
+    if (!a.due_date && !b.due_date) return 0
+    if (!a.due_date) return 1
+    if (!b.due_date) return -1
+    return a.due_date.localeCompare(b.due_date)
+  })
+}
+
 function isOverdue(dateStr: string): boolean {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -317,7 +333,7 @@ export default function MonthlyTasksPage() {
                     <p className="text-cream-200/30 text-sm pt-5 mb-4">No tasks yet — add one below.</p>
                   ) : (
                     <ul className={`space-y-1 ${isActive && total > 0 ? '' : 'pt-5'} mb-4`}>
-                      {tasks.map(task => (
+                      {sortTasks(tasks).map(task => (
                         <li
                           key={task.id}
                           className={`group flex items-center gap-3 py-3 px-3 rounded-lg transition-colors ${
@@ -351,6 +367,13 @@ export default function MonthlyTasksPage() {
                                 : 'text-cream-200/35'
                             }`}>
                               {formatDueDate(task.due_date)}
+                            </span>
+                          )}
+
+                          {/* Completion date — shown when checked, hidden when unchecked */}
+                          {task.completed && task.completed_at && (
+                            <span className="text-xs text-emerald-400/60 shrink-0">
+                              ✓ {formatCompletedAt(task.completed_at)}
                             </span>
                           )}
 

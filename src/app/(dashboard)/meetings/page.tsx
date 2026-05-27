@@ -413,7 +413,7 @@ export default function MeetingsPage() {
   return (
     <div className="flex h-full">
       {/* Left panel */}
-      <div className="w-72 shrink-0 border-r border-navy-600 flex flex-col h-full">
+      <div className="w-[27rem] shrink-0 border-r border-navy-600 flex flex-col h-full">
         <div className="p-4 border-b border-navy-600">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-base font-bold text-cream-100 flex items-center gap-2">

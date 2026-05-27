@@ -338,22 +338,22 @@ export default function DayView() {
               onDragOver={e => handleDragOver(e, date)}
               onDragLeave={handleDragLeave}
               onDrop={e => handleDrop(e, date)}
-              className={`bg-navy-800 border rounded-xl flex flex-col transition-all min-h-[200px] ${
+              className={`border rounded-xl flex flex-col transition-all min-h-[200px] ${
                 isToday
-                  ? 'border-gold-500/40 shadow-lg shadow-navy-900/40'
+                  ? 'bg-navy-700 border-gold-500/50 shadow-lg shadow-navy-900/50'
                   : isDragTarget
-                  ? 'border-gold-500/60 bg-navy-700/80'
-                  : 'border-navy-600'
+                  ? 'bg-navy-700/80 border-gold-500/60'
+                  : 'bg-navy-800 border-navy-600'
               }`}
             >
               {/* Day header */}
-              <div className={`px-4 pt-4 pb-3 border-b ${isToday ? 'border-gold-500/20' : 'border-navy-600'}`}>
+              <div className={`px-4 pt-4 pb-3 border-b ${isToday ? 'border-gold-500/25' : 'border-navy-600'}`}>
                 <div className="flex items-center gap-2">
-                  <span className={`text-sm font-semibold ${isToday ? 'text-cream-100' : 'text-cream-200/70'}`}>
+                  <span className={`font-bold ${isToday ? 'text-lg text-cream-100' : 'text-sm font-semibold text-cream-200/70'}`}>
                     {weekday}
                   </span>
                   {isToday && (
-                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-gold-500/15 text-gold-400 border border-gold-500/25">
+                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-gold-500/20 text-gold-400 border border-gold-500/30">
                       Today
                     </span>
                   )}
@@ -364,7 +364,7 @@ export default function DayView() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-cream-200/40 mt-0.5">{dateLabel}</p>
+                <p className={`mt-0.5 ${isToday ? 'text-sm text-cream-200/60' : 'text-xs text-cream-200/40'}`}>{dateLabel}</p>
               </div>
 
               <div className="px-4 py-3 flex-1 flex flex-col gap-3">
