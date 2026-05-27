@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { MonthlyTask } from '@/lib/types'
 import {
   Plus, Check, ChevronDown, ChevronRight,
-  RefreshCw, Trash2, Calendar, X, Copy,
+  RefreshCw, Trash2, Calendar, X, Copy, FileText,
 } from 'lucide-react'
 
 // Active close month: day >= 20 = current month, else previous month
@@ -74,6 +74,9 @@ export default function MonthlyTasksPage() {
   const [newDueDate, setNewDueDate] = useState<Record<string, string>>({})
   const [newRecurring, setNewRecurring] = useState<Record<string, boolean>>({})
 
+  // Notes expansion
+  const [notesOpenId, setNotesOpenId] = useState<string | null>(null)
+
   // Add Month modal
   const [showAddMonth, setShowAddMonth] = useState(false)
   const [newMonthYear, setNewMonthYear] = useState('')
@@ -140,6 +143,18 @@ export default function MonthlyTasksPage() {
       ...prev,
       [task.month_year]: prev[task.month_year].map(t =>
         t.id === task.id ? { ...t, is_recurring } : t
+      ),
+    }))
+  }
+
+  async function updateTaskNotes(task: MonthlyTask, notes: string) {
+    const trimmed = notes.trim() || null
+    if (trimmed === task.notes) return
+    await supabase.from('monthly_tasks').update({ notes: trimmed }).eq('id', task.id)
+    setTasksByMonth(prev => ({
+      ...prev,
+      [task.month_year]: prev[task.month_year].map(t =>
+        t.id === task.id ? { ...t, notes: trimmed } : t
       ),
     }))
   }
@@ -252,6 +267,7 @@ export default function MonthlyTasksPage() {
           const completed = tasks.filter(t => t.completed).length
           const total = tasks.length
           const pct = total > 0 ? Math.round((completed / total) * 100) : 0
+          const overdueCount = tasks.filter(t => !t.completed && t.due_date && isOverdue(t.due_date)).length
           const isActive = month === activeMonthStr
           const isExpanded = expandedMonths.has(month)
           const isAddingTask = showAddTask[month]
@@ -290,9 +306,16 @@ export default function MonthlyTasksPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-cream-200/35 mt-0.5">
-                    {total === 0 ? 'No tasks yet' : `${completed}/${total} complete · ${pct}%`}
-                  </p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-xs text-cream-200/35">
+                      {total === 0 ? 'No tasks yet' : `${completed}/${total} complete · ${pct}%`}
+                    </span>
+                    {overdueCount > 0 && (
+                      <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded-full">
+                        {overdueCount} overdue
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Mini progress bar */}
@@ -336,67 +359,102 @@ export default function MonthlyTasksPage() {
                       {sortTasks(tasks).map(task => (
                         <li
                           key={task.id}
-                          className={`group flex items-center gap-3 py-3 px-3 rounded-lg transition-colors ${
-                            task.completed ? '' : 'hover:bg-navy-700/50'
+                          className={`rounded-lg border transition-colors ${
+                            notesOpenId === task.id
+                              ? 'border-navy-500 bg-navy-700/40'
+                              : 'border-transparent'
                           }`}
                         >
-                          {/* Checkbox */}
-                          <button
-                            onClick={() => toggleTask(task)}
-                            className={`w-5 h-5 shrink-0 rounded border-2 transition-colors flex items-center justify-center ${
-                              task.completed
-                                ? 'bg-emerald-500 border-emerald-500'
-                                : 'border-cream-200/25 hover:border-gold-400'
-                            }`}
-                          >
-                            {task.completed && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                          </button>
-
-                          {/* Title */}
-                          <span className={`flex-1 text-sm min-w-0 ${
-                            task.completed ? 'line-through text-cream-200/35' : 'text-cream-100'
+                          {/* Main task row */}
+                          <div className={`group flex items-center gap-3 py-3 px-3 rounded-lg transition-colors ${
+                            task.completed || notesOpenId === task.id ? '' : 'hover:bg-navy-700/50'
                           }`}>
-                            {task.title}
-                          </span>
+                            {/* Checkbox */}
+                            <button
+                              onClick={() => toggleTask(task)}
+                              className={`w-5 h-5 shrink-0 rounded border-2 transition-colors flex items-center justify-center ${
+                                task.completed
+                                  ? 'bg-emerald-500 border-emerald-500'
+                                  : 'border-cream-200/25 hover:border-gold-400'
+                              }`}
+                            >
+                              {task.completed && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                            </button>
 
-                          {/* Due date */}
-                          {task.due_date && (
-                            <span className={`text-xs shrink-0 ${
-                              !task.completed && isOverdue(task.due_date)
-                                ? 'text-red-400 font-medium'
-                                : 'text-cream-200/35'
+                            {/* Title */}
+                            <span className={`flex-1 text-sm min-w-0 ${
+                              task.completed ? 'line-through text-cream-200/35' : 'text-cream-100'
                             }`}>
-                              {formatDueDate(task.due_date)}
+                              {task.title}
                             </span>
+
+                            {/* Due date */}
+                            {task.due_date && (
+                              <span className={`text-xs shrink-0 ${
+                                !task.completed && isOverdue(task.due_date)
+                                  ? 'text-red-400 font-medium'
+                                  : 'text-cream-200/35'
+                              }`}>
+                                {formatDueDate(task.due_date)}
+                              </span>
+                            )}
+
+                            {/* Completion date — shown when checked, hidden when unchecked */}
+                            {task.completed && task.completed_at && (
+                              <span className="text-xs text-emerald-400/60 shrink-0">
+                                ✓ {formatCompletedAt(task.completed_at)}
+                              </span>
+                            )}
+
+                            {/* Notes toggle — always visible if notes exist, hover-only if not */}
+                            <button
+                              onClick={() => setNotesOpenId(notesOpenId === task.id ? null : task.id)}
+                              title={task.notes ? 'View/edit notes' : 'Add notes'}
+                              className={`shrink-0 transition-colors ${
+                                task.notes
+                                  ? 'text-blue-400 hover:text-blue-300'
+                                  : 'text-cream-200/0 group-hover:text-cream-200/25 hover:!text-blue-400'
+                              }`}
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Recurring toggle — always visible if set, hover-only if not */}
+                            <button
+                              onClick={() => toggleRecurring(task)}
+                              title={task.is_recurring ? 'Recurring — click to remove' : 'Mark as recurring'}
+                              className={`shrink-0 transition-colors ${
+                                task.is_recurring
+                                  ? 'text-gold-400 hover:text-gold-300'
+                                  : 'text-cream-200/0 group-hover:text-cream-200/25 hover:!text-gold-400'
+                              }`}
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Delete */}
+                            <button
+                              onClick={() => deleteTask(task)}
+                              className="shrink-0 text-cream-200/0 group-hover:text-cream-200/25 hover:!text-red-400 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Expandable notes */}
+                          {notesOpenId === task.id && (
+                            <div className="px-3 pb-3">
+                              <textarea
+                                key={task.id}
+                                autoFocus
+                                defaultValue={task.notes ?? ''}
+                                onBlur={e => updateTaskNotes(task, e.target.value)}
+                                placeholder="Add notes for this task…"
+                                rows={2}
+                                className="w-full bg-navy-700 border border-navy-600 rounded-lg text-xs text-cream-100 px-3 py-2 placeholder-cream-200/25 focus:border-gold-500/60 focus:outline-none resize-none transition-colors"
+                              />
+                            </div>
                           )}
-
-                          {/* Completion date — shown when checked, hidden when unchecked */}
-                          {task.completed && task.completed_at && (
-                            <span className="text-xs text-emerald-400/60 shrink-0">
-                              ✓ {formatCompletedAt(task.completed_at)}
-                            </span>
-                          )}
-
-                          {/* Recurring toggle — always visible if set, hover-only if not */}
-                          <button
-                            onClick={() => toggleRecurring(task)}
-                            title={task.is_recurring ? 'Recurring — click to remove' : 'Mark as recurring'}
-                            className={`shrink-0 transition-colors ${
-                              task.is_recurring
-                                ? 'text-gold-400 hover:text-gold-300'
-                                : 'text-cream-200/0 group-hover:text-cream-200/25 hover:!text-gold-400'
-                            }`}
-                          >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Delete */}
-                          <button
-                            onClick={() => deleteTask(task)}
-                            className="shrink-0 text-cream-200/0 group-hover:text-cream-200/25 hover:!text-red-400 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </li>
                       ))}
                     </ul>

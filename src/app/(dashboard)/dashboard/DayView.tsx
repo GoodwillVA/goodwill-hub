@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { DayFocusItem, Task, MonthlyTask, Meeting } from '@/lib/types'
-import { Plus, X, GripVertical, Clock, Check, AlertCircle, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
+import { Plus, X, GripVertical, Clock, Check, AlertCircle, ChevronLeft, ChevronRight, CalendarDays, ArrowRight } from 'lucide-react'
 
 // ─── Business day helpers ────────────────────────────────────────────────────
 
@@ -179,6 +179,14 @@ export default function DayView() {
   async function deleteFocusItem(id: string) {
     await supabase.from('day_focus_items').delete().eq('id', id)
     setFocusItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  async function moveAllToToday(fromDate: string) {
+    const incomplete = focusItems.filter(i => i.focus_date === fromDate && !i.completed)
+    if (incomplete.length === 0) return
+    const ids = incomplete.map(i => i.id)
+    await supabase.from('day_focus_items').update({ focus_date: todayDateStr }).in('id', ids)
+    setFocusItems(prev => prev.map(i => ids.includes(i.id) ? { ...i, focus_date: todayDateStr } : i))
   }
 
   // ── Add item ─────────────────────────────────────────────────────────────
@@ -358,10 +366,20 @@ export default function DayView() {
                     </span>
                   )}
                   {isYesterday && incompleteItems.length > 0 && (
-                    <span className="flex items-center gap-0.5 text-[10px] text-amber-400">
-                      <AlertCircle className="w-3 h-3" />
-                      {incompleteItems.length} open
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex items-center gap-0.5 text-[10px] text-amber-400">
+                        <AlertCircle className="w-3 h-3" />
+                        {incompleteItems.length} open
+                      </span>
+                      <button
+                        onClick={() => moveAllToToday(date)}
+                        title="Move all incomplete items to today"
+                        className="flex items-center gap-0.5 text-[10px] text-amber-400/70 hover:text-amber-300 transition-colors underline underline-offset-2"
+                      >
+                        <ArrowRight className="w-2.5 h-2.5" />
+                        today
+                      </button>
+                    </div>
                   )}
                 </div>
                 <p className={`mt-0.5 ${isToday ? 'text-sm text-cream-200/60' : 'text-xs text-cream-200/40'}`}>{dateLabel}</p>
