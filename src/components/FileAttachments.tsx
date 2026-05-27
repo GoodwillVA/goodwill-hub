@@ -154,7 +154,7 @@ export default function FileAttachments({ entityType, entityId }: Props) {
         const words = extracted.trim().split(/\s+/).length
         toast.success(`"${file.name}" attached — ${words.toLocaleString()} words available to AI`)
       } else if (file.type.startsWith('image/')) {
-        toast.success(`"${file.name}" attached — image stored for reference`)
+        toast.success(`"${file.name}" attached — image will be shown to AI`)
       } else {
         toast.success(`"${file.name}" attached`)
       }

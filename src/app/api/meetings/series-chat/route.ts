@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { ChatMessage, ActionItem, MeetingAttendee } from '@/lib/types'
+import { fetchImageBlock, prependImageContext, ImageBlock } from '@/lib/vision'
 
 const anthropic = new Anthropic()
 
@@ -18,8 +19,23 @@ export async function POST(request: Request) {
 
   const meetingIds = (meetings ?? []).map((m: { id: string }) => m.id)
   const { data: allAtts } = meetingIds.length > 0
-    ? await supabase.from('attachments').select('entity_id, file_name, mime_type, extracted_text').eq('entity_type', 'meeting').in('entity_id', meetingIds).order('created_at', { ascending: true })
-    : { data: [] as { entity_id: string; file_name: string; mime_type: string; extracted_text: string | null }[] }
+    ? await supabase.from('attachments').select('entity_id, file_name, mime_type, extracted_text, storage_path').eq('entity_type', 'meeting').in('entity_id', meetingIds).order('created_at', { ascending: true })
+    : { data: [] as { entity_id: string; file_name: string; mime_type: string; extracted_text: string | null; storage_path: string }[] }
+
+  // Fetch all image attachments across the series for vision context
+  const imageAtts = (allAtts ?? []).filter(a => a.mime_type.startsWith('image/') && !a.extracted_text)
+  let imageBlocks: ImageBlock[] = []
+  if (imageAtts.length > 0) {
+    const signed = await Promise.all(
+      imageAtts.map(a => supabase.storage.from('attachments').createSignedUrl(a.storage_path, 120))
+    )
+    const fetched = await Promise.all(
+      signed.map((s: { data: { signedUrl: string } | null }, i: number) =>
+        s.data?.signedUrl ? fetchImageBlock(s.data.signedUrl, imageAtts[i].mime_type) : null
+      )
+    )
+    imageBlocks = fetched.filter((b): b is ImageBlock => b !== null)
+  }
 
   const meetingContext = (meetings ?? []).map((m: {
     id: string; title: string; meeting_date: string; meeting_time: string | null;
@@ -59,7 +75,7 @@ Help Jon identify patterns across meetings in this series, track progress on rec
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     system: systemPrompt,
-    messages,
+    messages: prependImageContext(messages, imageBlocks),
   })
 
   const readable = new ReadableStream({

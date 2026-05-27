@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { ChatMessage, AgendaItem, PendingAsk } from '@/lib/types'
+import { fetchImageBlock, prependImageContext, ImageBlock } from '@/lib/vision'
 
 const anthropic = new Anthropic()
 
@@ -64,18 +65,32 @@ export async function POST(request: Request) {
 
   const { data: atts } = await supabase
     .from('attachments')
-    .select('file_name, mime_type, extracted_text')
+    .select('file_name, mime_type, extracted_text, storage_path')
     .eq('entity_type', 'team')
     .eq('entity_id', 'accounting-team')
     .order('created_at', { ascending: true })
 
-  const attachmentContext = (atts ?? []).length > 0
-    ? `\n\n## Attached Reference Files\n${(atts ?? []).map((a: { file_name: string; mime_type: string; extracted_text: string | null }) =>
-        a.extracted_text
-          ? `### ${a.file_name}\n${a.extracted_text}`
-          : `[Attached: ${a.file_name} — image or non-extractable file]`
+  const attachmentContext = (atts ?? []).filter((a: { extracted_text: string | null }) => a.extracted_text).length > 0
+    ? `\n\n## Attached Reference Files\n${(atts ?? []).filter((a: { extracted_text: string | null }) => a.extracted_text).map((a: { file_name: string; extracted_text: string | null }) =>
+        `### ${a.file_name}\n${a.extracted_text}`
       ).join('\n\n')}`
     : ''
+
+  const imageAtts = (atts ?? []).filter((a: { mime_type: string; extracted_text: string | null }) =>
+    a.mime_type.startsWith('image/') && !a.extracted_text
+  )
+  let imageBlocks: ImageBlock[] = []
+  if (imageAtts.length > 0) {
+    const signed = await Promise.all(
+      imageAtts.map((a: { storage_path: string }) => supabase.storage.from('attachments').createSignedUrl(a.storage_path, 120))
+    )
+    const fetched = await Promise.all(
+      signed.map((s: { data: { signedUrl: string } | null }, i: number) =>
+        s.data?.signedUrl ? fetchImageBlock(s.data.signedUrl, imageAtts[i].mime_type) : null
+      )
+    )
+    imageBlocks = fetched.filter((b): b is ImageBlock => b !== null)
+  }
 
   const systemPrompt = `You are a management advisor helping Jon Harris, Controller at Goodwill of Central and Coastal Virginia, think strategically about his accounting team as a whole.
 
@@ -89,7 +104,7 @@ Help Jon with team-wide thinking: workload distribution, identifying patterns ac
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     system: systemPrompt,
-    messages,
+    messages: prependImageContext(messages, imageBlocks),
   })
 
   const readable = new ReadableStream({

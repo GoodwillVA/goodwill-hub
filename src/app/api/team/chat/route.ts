@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { ChatMessage } from '@/lib/types'
+import { fetchImageBlock, prependImageContext, ImageBlock } from '@/lib/vision'
 
 const anthropic = new Anthropic()
 
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
     supabase.from('team_members').select('*').eq('id', memberId).single(),
     supabase.from('team_member_logs').select('*').eq('member_id', memberId).order('log_date', { ascending: false }).limit(10),
     supabase.from('team_member_goals').select('*').eq('member_id', memberId).order('created_at', { ascending: true }),
-    supabase.from('attachments').select('file_name, mime_type, extracted_text').eq('entity_type', 'team_member').eq('entity_id', memberId).order('created_at', { ascending: true }),
+    supabase.from('attachments').select('file_name, mime_type, extracted_text, storage_path').eq('entity_type', 'team_member').eq('entity_id', memberId).order('created_at', { ascending: true }),
   ])
 
   const contextLines = [
@@ -30,13 +31,27 @@ export async function POST(request: Request) {
       : 'No goals recorded yet.',
   ].filter(Boolean).join('\n\n')
 
-  const attachmentContext = (atts ?? []).length > 0
-    ? `\n\n## Attached Reference Files\n${(atts ?? []).map((a: { file_name: string; mime_type: string; extracted_text: string | null }) =>
-        a.extracted_text
-          ? `### ${a.file_name}\n${a.extracted_text}`
-          : `[Attached: ${a.file_name} — image or non-extractable file]`
+  const attachmentContext = (atts ?? []).filter((a: { extracted_text: string | null }) => a.extracted_text).length > 0
+    ? `\n\n## Attached Reference Files\n${(atts ?? []).filter((a: { extracted_text: string | null }) => a.extracted_text).map((a: { file_name: string; extracted_text: string | null }) =>
+        `### ${a.file_name}\n${a.extracted_text}`
       ).join('\n\n')}`
     : ''
+
+  const imageAtts = (atts ?? []).filter((a: { mime_type: string; extracted_text: string | null }) =>
+    a.mime_type.startsWith('image/') && !a.extracted_text
+  )
+  let imageBlocks: ImageBlock[] = []
+  if (imageAtts.length > 0) {
+    const signed = await Promise.all(
+      imageAtts.map((a: { storage_path: string }) => supabase.storage.from('attachments').createSignedUrl(a.storage_path, 120))
+    )
+    const fetched = await Promise.all(
+      signed.map((s: { data: { signedUrl: string } | null }, i: number) =>
+        s.data?.signedUrl ? fetchImageBlock(s.data.signedUrl, imageAtts[i].mime_type) : null
+      )
+    )
+    imageBlocks = fetched.filter((b): b is ImageBlock => b !== null)
+  }
 
   const systemPrompt = `You are a management advisor helping Jon Harris, Controller at Goodwill of Central and Coastal Virginia, manage and develop his accounting team.
 
@@ -48,7 +63,7 @@ Help Jon think through performance conversations, draft feedback, develop coachi
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     system: systemPrompt,
-    messages,
+    messages: prependImageContext(messages, imageBlocks),
   })
 
   const readable = new ReadableStream({
