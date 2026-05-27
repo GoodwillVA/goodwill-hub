@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { MonthlyTask } from '@/lib/types'
 import {
   Plus, Check, ChevronDown, ChevronRight,
-  RefreshCw, Trash2, Calendar, X, Copy, FileText,
+  RefreshCw, Trash2, Calendar, X, Copy, FileText, Pencil,
 } from 'lucide-react'
 
 // Active close month: day >= 20 = current month, else previous month
@@ -76,6 +76,11 @@ export default function MonthlyTasksPage() {
 
   // Notes expansion
   const [notesOpenId, setNotesOpenId] = useState<string | null>(null)
+
+  // Inline task editing
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [editTitleValue, setEditTitleValue] = useState('')
+  const [editDueDateValue, setEditDueDateValue] = useState('')
 
   // Add Month modal
   const [showAddMonth, setShowAddMonth] = useState(false)
@@ -157,6 +162,33 @@ export default function MonthlyTasksPage() {
         t.id === task.id ? { ...t, notes: trimmed } : t
       ),
     }))
+  }
+
+  function startEditTask(task: MonthlyTask) {
+    setEditingTaskId(task.id)
+    setEditTitleValue(task.title)
+    setEditDueDateValue(task.due_date ?? '')
+    setNotesOpenId(null) // close notes if open
+  }
+
+  function cancelEditTask() {
+    setEditingTaskId(null)
+    setEditTitleValue('')
+    setEditDueDateValue('')
+  }
+
+  async function saveTaskEdit(task: MonthlyTask) {
+    const title = editTitleValue.trim()
+    if (!title) return
+    const due_date = editDueDateValue || null
+    await supabase.from('monthly_tasks').update({ title, due_date }).eq('id', task.id)
+    setTasksByMonth(prev => ({
+      ...prev,
+      [task.month_year]: prev[task.month_year].map(t =>
+        t.id === task.id ? { ...t, title, due_date } : t
+      ),
+    }))
+    cancelEditTask()
   }
 
   async function addTask(monthYear: string) {
@@ -367,78 +399,127 @@ export default function MonthlyTasksPage() {
                         >
                           {/* Main task row */}
                           <div className={`group flex items-center gap-3 py-3 px-3 rounded-lg transition-colors ${
-                            task.completed || notesOpenId === task.id ? '' : 'hover:bg-navy-700/50'
+                            task.completed || notesOpenId === task.id || editingTaskId === task.id ? '' : 'hover:bg-navy-700/50'
                           }`}>
-                            {/* Checkbox */}
-                            <button
-                              onClick={() => toggleTask(task)}
-                              className={`w-5 h-5 shrink-0 rounded border-2 transition-colors flex items-center justify-center ${
-                                task.completed
-                                  ? 'bg-emerald-500 border-emerald-500'
-                                  : 'border-cream-200/25 hover:border-gold-400'
-                              }`}
-                            >
-                              {task.completed && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                            </button>
+                            {editingTaskId === task.id ? (
+                              // ── Edit mode ──────────────────────────────────
+                              <>
+                                <input
+                                  autoFocus
+                                  value={editTitleValue}
+                                  onChange={e => setEditTitleValue(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') saveTaskEdit(task)
+                                    if (e.key === 'Escape') cancelEditTask()
+                                  }}
+                                  className="flex-1 min-w-0 bg-navy-700 border border-gold-500/50 rounded-lg px-3 py-1.5 text-sm text-cream-100 focus:outline-none focus:border-gold-500"
+                                />
+                                <input
+                                  type="date"
+                                  value={editDueDateValue}
+                                  onChange={e => setEditDueDateValue(e.target.value)}
+                                  className="shrink-0 bg-navy-700 border border-navy-500 rounded-lg px-2 py-1.5 text-xs text-cream-100 focus:outline-none focus:border-gold-500/50 [color-scheme:dark]"
+                                />
+                                <button
+                                  onClick={() => saveTaskEdit(task)}
+                                  disabled={!editTitleValue.trim()}
+                                  title="Save"
+                                  className="shrink-0 text-emerald-400 hover:text-emerald-300 disabled:opacity-40 transition-colors"
+                                >
+                                  <Check className="w-4 h-4" strokeWidth={2.5} />
+                                </button>
+                                <button
+                                  onClick={cancelEditTask}
+                                  title="Cancel"
+                                  className="shrink-0 text-cream-200/40 hover:text-cream-100 transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : (
+                              // ── Normal mode ────────────────────────────────
+                              <>
+                                {/* Checkbox */}
+                                <button
+                                  onClick={() => toggleTask(task)}
+                                  className={`w-5 h-5 shrink-0 rounded border-2 transition-colors flex items-center justify-center ${
+                                    task.completed
+                                      ? 'bg-emerald-500 border-emerald-500'
+                                      : 'border-cream-200/25 hover:border-gold-400'
+                                  }`}
+                                >
+                                  {task.completed && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                                </button>
 
-                            {/* Title */}
-                            <span className={`flex-1 text-sm min-w-0 ${
-                              task.completed ? 'line-through text-cream-200/35' : 'text-cream-100'
-                            }`}>
-                              {task.title}
-                            </span>
+                                {/* Title */}
+                                <span className={`flex-1 text-sm min-w-0 ${
+                                  task.completed ? 'line-through text-cream-200/35' : 'text-cream-100'
+                                }`}>
+                                  {task.title}
+                                </span>
 
-                            {/* Due date */}
-                            {task.due_date && (
-                              <span className={`text-xs shrink-0 ${
-                                !task.completed && isOverdue(task.due_date)
-                                  ? 'text-red-400 font-medium'
-                                  : 'text-cream-200/35'
-                              }`}>
-                                {formatDueDate(task.due_date)}
-                              </span>
+                                {/* Due date */}
+                                {task.due_date && (
+                                  <span className={`text-xs shrink-0 ${
+                                    !task.completed && isOverdue(task.due_date)
+                                      ? 'text-red-400 font-medium'
+                                      : 'text-cream-200/35'
+                                  }`}>
+                                    {formatDueDate(task.due_date)}
+                                  </span>
+                                )}
+
+                                {/* Completion date */}
+                                {task.completed && task.completed_at && (
+                                  <span className="text-xs text-emerald-400/60 shrink-0">
+                                    ✓ {formatCompletedAt(task.completed_at)}
+                                  </span>
+                                )}
+
+                                {/* Edit — hover-only */}
+                                <button
+                                  onClick={() => startEditTask(task)}
+                                  title="Edit title or due date"
+                                  className="shrink-0 text-cream-200/0 group-hover:text-cream-200/25 hover:!text-gold-400 transition-colors"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Notes toggle */}
+                                <button
+                                  onClick={() => setNotesOpenId(notesOpenId === task.id ? null : task.id)}
+                                  title={task.notes ? 'View/edit notes' : 'Add notes'}
+                                  className={`shrink-0 transition-colors ${
+                                    task.notes
+                                      ? 'text-blue-400 hover:text-blue-300'
+                                      : 'text-cream-200/0 group-hover:text-cream-200/25 hover:!text-blue-400'
+                                  }`}
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Recurring toggle */}
+                                <button
+                                  onClick={() => toggleRecurring(task)}
+                                  title={task.is_recurring ? 'Recurring — click to remove' : 'Mark as recurring'}
+                                  className={`shrink-0 transition-colors ${
+                                    task.is_recurring
+                                      ? 'text-gold-400 hover:text-gold-300'
+                                      : 'text-cream-200/0 group-hover:text-cream-200/25 hover:!text-gold-400'
+                                  }`}
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Delete */}
+                                <button
+                                  onClick={() => deleteTask(task)}
+                                  className="shrink-0 text-cream-200/0 group-hover:text-cream-200/25 hover:!text-red-400 transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
                             )}
-
-                            {/* Completion date — shown when checked, hidden when unchecked */}
-                            {task.completed && task.completed_at && (
-                              <span className="text-xs text-emerald-400/60 shrink-0">
-                                ✓ {formatCompletedAt(task.completed_at)}
-                              </span>
-                            )}
-
-                            {/* Notes toggle — always visible if notes exist, hover-only if not */}
-                            <button
-                              onClick={() => setNotesOpenId(notesOpenId === task.id ? null : task.id)}
-                              title={task.notes ? 'View/edit notes' : 'Add notes'}
-                              className={`shrink-0 transition-colors ${
-                                task.notes
-                                  ? 'text-blue-400 hover:text-blue-300'
-                                  : 'text-cream-200/0 group-hover:text-cream-200/25 hover:!text-blue-400'
-                              }`}
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                            </button>
-
-                            {/* Recurring toggle — always visible if set, hover-only if not */}
-                            <button
-                              onClick={() => toggleRecurring(task)}
-                              title={task.is_recurring ? 'Recurring — click to remove' : 'Mark as recurring'}
-                              className={`shrink-0 transition-colors ${
-                                task.is_recurring
-                                  ? 'text-gold-400 hover:text-gold-300'
-                                  : 'text-cream-200/0 group-hover:text-cream-200/25 hover:!text-gold-400'
-                              }`}
-                            >
-                              <RefreshCw className="w-3.5 h-3.5" />
-                            </button>
-
-                            {/* Delete */}
-                            <button
-                              onClick={() => deleteTask(task)}
-                              className="shrink-0 text-cream-200/0 group-hover:text-cream-200/25 hover:!text-red-400 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
                           </div>
 
                           {/* Expandable notes */}
