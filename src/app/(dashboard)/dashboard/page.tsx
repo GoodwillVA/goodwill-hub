@@ -90,11 +90,11 @@ export default async function DashboardPage() {
             pct={totalClose > 0 ? closePct : null}
           />
         </Link>
-        <Link href="/projects">
-          <StatCard label="Open Projects" value={String(openProjects)} color="text-gold-400" />
-        </Link>
         <Link href="/meetings">
           <StatCard label="Meetings This Week" value={String(meetingsThisWeek)} color="text-purple-400" />
+        </Link>
+        <Link href="/projects">
+          <StatCard label="Open Projects" value={String(openProjects)} color="text-gold-400" />
         </Link>
       </div>
 
