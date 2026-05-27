@@ -783,8 +783,8 @@ export default function MeetingsPage() {
               <label className="block text-sm font-semibold text-cream-200/40 uppercase tracking-wider mb-3">Pre-meeting Notes / Agenda</label>
               <textarea value={notesDraft} onChange={e => setNotesDraft(e.target.value)} onBlur={saveNotes}
                 placeholder="Agenda, talking points, questions to ask… (saves automatically)"
-                rows={4}
-                className="w-full bg-navy-700 border border-navy-600 rounded-xl text-base text-cream-100 px-4 py-3 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-none transition-colors"
+                rows={10}
+                className="w-full bg-navy-700 border border-navy-600 rounded-xl text-base text-cream-100 px-4 py-3 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none resize-y transition-colors"
               />
             </section>
 
@@ -820,7 +820,7 @@ export default function MeetingsPage() {
             {selected.summary && (
               <section>
                 <p className="text-sm font-semibold text-cream-200/40 uppercase tracking-wider mb-3">AI Summary</p>
-                <div className="bg-navy-700 border border-navy-600 rounded-xl p-5 text-base text-cream-100 leading-relaxed">{selected.summary}</div>
+                <div className="bg-navy-700 border border-navy-600 rounded-xl p-5 text-base text-cream-100 leading-relaxed whitespace-pre-wrap">{selected.summary}</div>
               </section>
             )}
 
@@ -855,19 +855,6 @@ export default function MeetingsPage() {
               </section>
             )}
 
-            {selected.followup_email && (
-              <section>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-cream-200/40 uppercase tracking-wider">Follow-up Email Draft</p>
-                  <button onClick={() => { navigator.clipboard.writeText(selected.followup_email ?? ''); toast.success('Copied to clipboard') }}
-                    className="flex items-center gap-1.5 text-xs bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Copy className="w-3.5 h-3.5" /> Copy
-                  </button>
-                </div>
-                <pre className="whitespace-pre-wrap font-sans text-base text-cream-100 bg-navy-700 border border-navy-600 rounded-xl p-5 leading-relaxed">{selected.followup_email}</pre>
-              </section>
-            )}
           </div>
         </div>
       ) : (

@@ -4,24 +4,42 @@ import { fetchImageBlock, ImageBlock } from '@/lib/vision'
 
 const anthropic = new Anthropic()
 
-const SYSTEM_PROMPT = `You are a meeting analyst for Jon at Goodwill of Central and Coastal Virginia, a nonprofit workforce development organization serving Central and Coastal Virginia.
+const SYSTEM_PROMPT = `You are a meeting analyst for Jon at Goodwill of Central and Coastal Virginia, a nonprofit workforce development organization.
 
 Given a meeting transcript and context, return a JSON object with exactly these keys:
 
 {
-  "summary": "3-5 sentence recap covering: what was discussed, key decisions made, and what happens next",
+  "summary": "detailed structured plain-text summary using the section format described below",
   "action_items": [
     { "title": "specific task", "owner": "first name of person responsible or null", "due_date": "YYYY-MM-DD if mentioned otherwise null" }
-  ],
-  "followup_email": "complete email text starting with 'Subject: ...\\n\\n' then the full email body"
+  ]
 }
 
-Guidelines:
-- Summary: be specific and outcome-focused. Name decisions, not just topics.
-- Action items: capture every commitment, deliverable, or next step. "Jon to send proposal by June 1" not just "send proposal". Include every person's commitments.
-- Follow-up email: write as Jon from Goodwill of Central and Coastal Virginia. Reference specific points from the meeting. Professional but warm. Under 200 words. Include a subject line.
+Format the "summary" value as plain text with the following sections. Use exactly these all-caps headers. Only include a section if it has meaningful content.
 
-Return ONLY valid JSON. No markdown code fences, no explanation text outside the JSON.`
+OVERVIEW
+2–3 sentences: what this meeting was about, who attended, and the primary outcome or purpose.
+
+KEY DISCUSSION POINTS
+• [Topic or issue]: Substantive summary of what was discussed — positions taken, context provided, analysis shared, concerns raised. Be specific enough that someone who wasn't in the room understands the substance.
+• Continue for each significant topic.
+
+DECISIONS MADE
+• State each decision with enough context to understand it. "Decided to defer the external audit until Q3 due to staffing" not just "discussed audit".
+
+OPEN QUESTIONS & UNRESOLVED ITEMS
+• Questions raised but not answered, issues flagged for follow-up, topics tabled for a future meeting.
+
+CONTEXT & BACKGROUND NOTED
+• Important background, constraints, deadlines, or organizational context mentioned that informs future work or decisions.
+
+Guidelines:
+- Be specific and substantive throughout — this is a working record, not a vague recap
+- Name people, amounts, dates, and systems when mentioned
+- Action items: capture every commitment. "Jon to send revised budget to Sarah by June 1" not just "send budget"
+- Omit sections that genuinely have no content rather than adding filler
+
+Return ONLY valid JSON. No markdown code fences, no explanation outside the JSON.`
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -78,7 +96,7 @@ export async function POST(request: Request) {
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userContent }],
   })
