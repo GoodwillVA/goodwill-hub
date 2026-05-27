@@ -17,10 +17,10 @@ export async function POST(request: Request) {
     supabase.from('team_member_logs').select('*').order('log_date', { ascending: false }),
     supabase.from('team_member_goals').select('*').order('created_at', { ascending: true }),
     supabase.from('meetings')
-      .select('id, title, meeting_date, type, summary, attendees')
+      .select('id, title, meeting_date, type, notes, summary, attendees')
       .in('type', ['team', '1-1'])
       .order('meeting_date', { ascending: false })
-      .limit(10),
+      .limit(25),
   ])
 
   const memberContext = (members ?? []).map((m: {
@@ -57,10 +57,17 @@ export async function POST(request: Request) {
   }).join('\n\n')
 
   const meetingContext = (meetings ?? []).length > 0
-    ? `\n\nRecent team meetings:\n${(meetings ?? []).map((m: {
-        title: string; meeting_date: string; type: string; summary: string | null
-      }) => `- ${m.title} (${m.meeting_date}, ${m.type})${m.summary ? `: ${m.summary}` : ''}`
-      ).join('\n')}`
+    ? `\n\n## Recent Team & 1:1 Meetings\n\n${(meetings ?? []).map((m: {
+        title: string; meeting_date: string; type: string; notes: string | null; summary: string | null;
+        attendees: { name: string }[]
+      }) => {
+        const attendeeList = (m.attendees ?? []).map((a: { name: string }) => a.name).filter(Boolean).join(', ')
+        const parts = [`### ${m.title} — ${m.meeting_date} (${m.type})`]
+        if (attendeeList) parts.push(`Attendees: ${attendeeList}`)
+        if (m.summary) parts.push(`Summary: ${m.summary}`)
+        else if (m.notes) parts.push(`Notes: ${m.notes}`)
+        return parts.join('\n')
+      }).join('\n\n')}`
     : ''
 
   const { data: atts } = await supabase
