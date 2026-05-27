@@ -442,12 +442,20 @@ export default function MeetingsPage() {
     return true
   })
 
+  const todayDateStr = new Date().toISOString().split('T')[0]
+  const upcomingMeetings = filteredMeetings
+    .filter(m => m.meeting_date >= todayDateStr)
+    .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date))
+  const pastMeetings = filteredMeetings
+    .filter(m => m.meeting_date < todayDateStr)
+    .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date))
+
   const typeObj = (t: MeetingType) => TYPES.find(x => x.value === t)!
 
   return (
     <div className="flex h-full">
       {/* Left panel */}
-      <div className="w-[27rem] shrink-0 border-r border-navy-600 flex flex-col h-full">
+      <div className={`${viewMode === 'list' ? 'w-[42rem]' : 'w-[27rem]'} shrink-0 border-r border-navy-600 flex flex-col h-full`}>
         <div className="p-4 border-b border-navy-600">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-base font-bold text-cream-100 flex items-center gap-2">
@@ -542,7 +550,69 @@ export default function MeetingsPage() {
               )
             })}
           </ul>
+        ) : viewMode === 'list' ? (
+          <div className="flex-1 overflow-hidden flex min-h-0">
+            {/* Upcoming column */}
+            <div className="flex-1 flex flex-col border-r border-navy-600/50 min-w-0">
+              <div className="px-3 py-1.5 border-b border-navy-600 shrink-0">
+                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider flex items-center gap-1.5">
+                  Upcoming <span className="font-normal normal-case tracking-normal text-cream-200/25">{upcomingMeetings.length}</span>
+                </p>
+              </div>
+              <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
+                {upcomingMeetings.length === 0 && (
+                  <li className="px-3 py-6 text-xs text-cream-200/30 text-center">No upcoming meetings.</li>
+                )}
+                {upcomingMeetings.map(m => (
+                  <li key={m.id} onClick={() => setSelected(m)}
+                    className={`p-2.5 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-1 mb-0.5">
+                      <p className="text-xs text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{m.title}</p>
+                      <span className={`text-[9px] font-medium px-1 py-0.5 rounded shrink-0 ml-1 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
+                    </div>
+                    <p className="text-[10px] text-cream-200/40">
+                      {formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}{m.summary ? ' · ✓' : ''}
+                    </p>
+                    {m.attendees?.length > 0 && (
+                      <p className="text-[10px] text-cream-200/25 truncate mt-0.5">{m.attendees.map(a => a.name).join(', ')}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Past column */}
+            <div className="flex-1 flex flex-col min-w-0">
+              <div className="px-3 py-1.5 border-b border-navy-600 shrink-0">
+                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider flex items-center gap-1.5">
+                  Past <span className="font-normal normal-case tracking-normal text-cream-200/25">{pastMeetings.length}</span>
+                </p>
+              </div>
+              <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
+                {pastMeetings.length === 0 && (
+                  <li className="px-3 py-6 text-xs text-cream-200/30 text-center">No past meetings.</li>
+                )}
+                {pastMeetings.map(m => (
+                  <li key={m.id} onClick={() => setSelected(m)}
+                    className={`p-2.5 cursor-pointer hover:bg-navy-700 transition-colors ${selected?.id === m.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-1 mb-0.5">
+                      <p className="text-xs text-cream-100 font-medium leading-snug line-clamp-2 flex-1">{m.title}</p>
+                      <span className={`text-[9px] font-medium px-1 py-0.5 rounded shrink-0 ml-1 ${typeObj(m.type).color}`}>{typeObj(m.type).label}</span>
+                    </div>
+                    <p className="text-[10px] text-cream-200/40">
+                      {formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}{m.summary ? ' · ✓' : ''}
+                    </p>
+                    {m.attendees?.length > 0 && (
+                      <p className="text-[10px] text-cream-200/25 truncate mt-0.5">{m.attendees.map(a => a.name).join(', ')}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         ) : (
+          // Calendar view — single column
           <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
             {filteredMeetings.length === 0 && <li className="p-4 text-sm text-cream-200/40">No meetings{selectedDay ? ' on this day' : ''}.</li>}
             {filteredMeetings.map(m => (

@@ -136,8 +136,7 @@ export default function AccountingTeamPage() {
       supabase.from('meetings')
         .select('id, title, meeting_date, meeting_time, type, summary, attendees')
         .in('type', ['team', '1-1'])
-        .order('meeting_date', { ascending: false })
-        .limit(20),
+        .order('meeting_date', { ascending: false }),
     ])
     const rich: RichMember[] = (membersData ?? []).map((m: TeamMember) => ({
       ...m,
@@ -465,6 +464,14 @@ export default function AccountingTeamPage() {
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  const todayTeamStr = new Date().toISOString().split('T')[0]
+  const upcomingTeamMeetings = [...teamMeetings]
+    .filter(m => m.meeting_date >= todayTeamStr)
+    .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date))
+  const pastTeamMeetings = [...teamMeetings]
+    .filter(m => m.meeting_date < todayTeamStr)
+    .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date))
 
   return (
     <div className="p-6 w-full max-w-5xl">
@@ -989,30 +996,62 @@ export default function AccountingTeamPage() {
           {teamMeetings.length === 0 ? (
             <p className="text-sm text-cream-200/30">No Team or 1:1 meetings logged yet. Add them in the Meetings module using the Team or 1:1 type.</p>
           ) : (
-            <ul className="space-y-2">
-              {teamMeetings.slice(0, 8).map(m => (
-                <li key={m.id} className="flex items-start gap-3 p-3 bg-navy-700/50 rounded-lg border border-navy-600">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-cream-100">{m.title}</span>
-                      <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                        m.type === '1-1'
-                          ? 'bg-purple-500/20 text-purple-300'
-                          : 'bg-blue-500/20 text-blue-300'
-                      }`}>
-                        {MEETING_TYPE_LABELS[m.type] ?? m.type}
-                      </span>
-                    </div>
-                    <p className="text-xs text-cream-200/40 mt-0.5">
-                      {formatDate(m.meeting_date)}
-                      {m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}
-                      {m.attendees?.length > 0 ? ` · ${m.attendees.map(a => a.name).join(', ')}` : ''}
-                    </p>
-                    {m.summary && <p className="text-xs text-cream-200/50 mt-1 line-clamp-2">{m.summary}</p>}
+            <div className="grid grid-cols-2 gap-5">
+              {/* Upcoming */}
+              <div>
+                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  Upcoming <span className="font-normal normal-case tracking-normal text-cream-200/25">{upcomingTeamMeetings.length}</span>
+                </p>
+                {upcomingTeamMeetings.length === 0 ? (
+                  <p className="text-xs text-cream-200/30">None scheduled.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {upcomingTeamMeetings.map(m => (
+                      <div key={m.id} className="p-3 bg-navy-700/50 rounded-lg border border-navy-600">
+                        <div className="flex items-start gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-cream-100 flex-1 leading-snug">{m.title}</span>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${m.type === '1-1' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                            {MEETING_TYPE_LABELS[m.type] ?? m.type}
+                          </span>
+                        </div>
+                        <p className="text-xs text-cream-200/40 mt-0.5">
+                          {formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}
+                          {m.attendees?.length > 0 ? ` · ${m.attendees.map(a => a.name).join(', ')}` : ''}
+                        </p>
+                        {m.summary && <p className="text-xs text-cream-200/50 mt-1 line-clamp-2">{m.summary}</p>}
+                      </div>
+                    ))}
                   </div>
-                </li>
-              ))}
-            </ul>
+                )}
+              </div>
+              {/* Past */}
+              <div>
+                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  Past <span className="font-normal normal-case tracking-normal text-cream-200/25">{pastTeamMeetings.length}</span>
+                </p>
+                {pastTeamMeetings.length === 0 ? (
+                  <p className="text-xs text-cream-200/30">No past meetings.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {pastTeamMeetings.slice(0, 12).map(m => (
+                      <div key={m.id} className="p-3 bg-navy-700/50 rounded-lg border border-navy-600">
+                        <div className="flex items-start gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-cream-100 flex-1 leading-snug">{m.title}</span>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${m.type === '1-1' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                            {MEETING_TYPE_LABELS[m.type] ?? m.type}
+                          </span>
+                        </div>
+                        <p className="text-xs text-cream-200/40 mt-0.5">
+                          {formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}
+                          {m.attendees?.length > 0 ? ` · ${m.attendees.map(a => a.name).join(', ')}` : ''}
+                        </p>
+                        {m.summary && <p className="text-xs text-cream-200/50 mt-1 line-clamp-2">{m.summary}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
 
