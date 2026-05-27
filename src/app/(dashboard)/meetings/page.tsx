@@ -40,6 +40,8 @@ const EMPTY_FORM = {
   type: 'internal' as MeetingType, project_id: '',
   notes: '', status: 'scheduled' as MeetingStatus,
   series_id: '',
+  next_meeting_date: '',
+  next_meeting_time: '',
 }
 
 export default function MeetingsPage() {
@@ -116,6 +118,8 @@ export default function MeetingsPage() {
       type: m.type, project_id: m.project_id ?? '',
       notes: m.notes ?? '', status: m.status,
       series_id: m.series_id ?? '',
+      next_meeting_date: '',
+      next_meeting_time: '',
     })
     setFormAttendees(m.attendees ?? [])
     setAttendeeInput({ name: '', position: '', organization: 'Goodwill Virginia' })
@@ -209,6 +213,30 @@ export default function MeetingsPage() {
       setMeetings(prev => [{ ...data, attendees: data.attendees ?? [], action_items: [] }, ...prev])
       toast.success('Meeting added')
     }
+
+    // Create next meeting in series if a date was provided
+    if (form.next_meeting_date && seriesId) {
+      const nextPayload = {
+        title: form.title.trim(),
+        meeting_date: form.next_meeting_date,
+        meeting_time: form.next_meeting_time || null,
+        duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes) : null,
+        type: form.type,
+        project_id: form.project_id || null,
+        notes: null,
+        status: 'scheduled' as MeetingStatus,
+        attendees: formAttendees,
+        series_id: seriesId,
+        contact_id: null,
+      }
+      const { data: nextMtg, error: nextErr } = await supabase.from('meetings').insert(nextPayload)
+        .select('*, project:projects(id,name), series:meeting_series(id,name)').single()
+      if (!nextErr && nextMtg) {
+        setMeetings(prev => [{ ...nextMtg, attendees: nextMtg.attendees ?? [], action_items: [] }, ...prev])
+        toast.success('Next meeting scheduled')
+      }
+    }
+
     setSaving(false)
     setShowModal(false)
   }
@@ -864,6 +892,54 @@ export default function MeetingsPage() {
                   />
                 )}
               </div>
+
+              {/* Next meeting in series */}
+              {form.series_id && form.series_id !== '__new__' && (
+                <div className="bg-navy-700/50 border border-navy-600 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-cream-200/70 flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5 text-gold-500/70" />
+                      Schedule next occurrence
+                    </label>
+                    {form.next_meeting_date && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, next_meeting_date: '', next_meeting_time: '' }))}
+                        className="text-[10px] text-cream-200/30 hover:text-cream-200/60 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] text-cream-200/40 mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={form.next_meeting_date}
+                        onChange={e => setForm(f => ({ ...f, next_meeting_date: e.target.value }))}
+                        className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 focus:border-gold-500/60 focus:outline-none [color-scheme:dark]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-cream-200/40 mb-1">Time (optional)</label>
+                      <input
+                        type="time"
+                        value={form.next_meeting_time}
+                        onChange={e => setForm(f => ({ ...f, next_meeting_time: e.target.value }))}
+                        className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 focus:border-gold-500/60 focus:outline-none [color-scheme:dark]"
+                      />
+                    </div>
+                  </div>
+                  {form.next_meeting_date ? (
+                    <p className="text-[10px] text-gold-400/70">
+                      A new <span className="font-medium">{form.title.trim() || 'matching'}</span> meeting will be created for this date with the same title, type, attendees, duration, and project.
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-cream-200/30">Leave blank to skip — you can always add the next meeting later.</p>
+                  )}
+                </div>
+              )}
 
               {/* Attendees */}
               <div>
