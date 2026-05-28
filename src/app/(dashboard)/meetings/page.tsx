@@ -8,7 +8,7 @@ import {
   Plus, X, CalendarDays, List, ChevronLeft, ChevronRight,
   Clock, FolderKanban, Upload, Sparkles, Copy,
   CheckCircle2, Circle, Trash2, Pencil, ArrowRight, UserPlus, Tag,
-  Send, RotateCcw, Layers, Search
+  Send, RotateCcw, Layers, Search, MessageSquare
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import FileAttachments from '@/components/FileAttachments'
@@ -76,16 +76,27 @@ export default function MeetingsPage() {
   const [seriesStreamingFor, setSeriesStreamingFor] = useState<string | null>(null)
   const [seriesStreamingText, setSeriesStreamingText] = useState('')
   const seriesAiEndRef = useRef<HTMLDivElement>(null)
+  const [meetingChatInput, setMeetingChatInput] = useState('')
+  const [meetingChatThread, setMeetingChatThread] = useState<ChatMessage[]>([])
+  const [meetingChatStreaming, setMeetingChatStreaming] = useState(false)
+  const [meetingChatStreamingText, setMeetingChatStreamingText] = useState('')
+  const meetingChatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { load() }, [])
   useEffect(() => {
     setNotesDraft(selected?.notes ?? '')
     setTranscriptDraft(selected?.transcript ?? '')
     setActionItems(selected?.action_items ?? [])
+    setMeetingChatThread([])
+    setMeetingChatInput('')
+    setMeetingChatStreamingText('')
   }, [selected?.id])
   useEffect(() => {
     seriesAiEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [seriesAiThreads, seriesStreamingText])
+  useEffect(() => {
+    meetingChatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [meetingChatThread, meetingChatStreamingText])
 
   async function load() {
     const [{ data: m }, { data: p }, { data: s }, { data: sa }] = await Promise.all([
@@ -363,6 +374,37 @@ export default function MeetingsPage() {
       action: { label: 'View Projects', onClick: () => { window.location.href = '/projects' } },
     })
     setPushingToProject(false)
+  }
+
+  async function sendMeetingChatMessage() {
+    if (!selected || !meetingChatInput.trim() || meetingChatStreaming) return
+    const userMsg: ChatMessage = { role: 'user', content: meetingChatInput.trim() }
+    const newThread = [...meetingChatThread, userMsg]
+    setMeetingChatThread(newThread)
+    setMeetingChatInput('')
+    setMeetingChatStreaming(true)
+    setMeetingChatStreamingText('')
+    try {
+      const res = await fetch('/api/meetings/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: newThread, meetingId: selected.id }),
+      })
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let full = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        full += decoder.decode(value, { stream: true })
+        setMeetingChatStreamingText(full)
+      }
+      setMeetingChatThread([...newThread, { role: 'assistant', content: full }])
+    } catch {
+      toast.error('AI request failed')
+    }
+    setMeetingChatStreaming(false)
+    setMeetingChatStreamingText('')
   }
 
   async function sendSeriesAiMessage(seriesId: string) {
@@ -854,6 +896,67 @@ export default function MeetingsPage() {
                 </ul>
               </section>
             )}
+
+            {/* Meeting Chat */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-cream-200/40 uppercase tracking-wider flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" /> Ask About This Meeting
+                </p>
+                {meetingChatThread.length > 0 && (
+                  <button
+                    onClick={() => setMeetingChatThread([])}
+                    className="flex items-center gap-1 text-xs text-cream-200/30 hover:text-cream-200/60 transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Clear
+                  </button>
+                )}
+              </div>
+              <div className="bg-navy-800 border border-navy-600 rounded-xl overflow-hidden">
+                <div className="h-72 overflow-y-auto p-4 space-y-3">
+                  {meetingChatThread.length === 0 && !meetingChatStreaming ? (
+                    <p className="text-sm text-cream-200/30 text-center py-8">
+                      Ask anything about this meeting — the transcript, decisions made, who said what, action items, or next steps.
+                    </p>
+                  ) : (
+                    <>
+                      {meetingChatThread.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-gold-500/20 text-cream-100' : 'bg-navy-700 text-cream-100'}`}>
+                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {meetingChatStreaming && (
+                        <div className="flex justify-start">
+                          <div className="max-w-[85%] rounded-xl px-3 py-2 text-sm bg-navy-700 text-cream-100 leading-relaxed">
+                            <p className="whitespace-pre-wrap">{meetingChatStreamingText || '…'}</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <div ref={meetingChatEndRef} />
+                </div>
+                <div className="border-t border-navy-600 p-3 flex gap-2">
+                  <input
+                    value={meetingChatInput}
+                    onChange={e => setMeetingChatInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMeetingChatMessage())}
+                    placeholder="Ask about this meeting…"
+                    disabled={meetingChatStreaming}
+                    className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none disabled:opacity-50"
+                  />
+                  <button
+                    onClick={sendMeetingChatMessage}
+                    disabled={!meetingChatInput.trim() || meetingChatStreaming}
+                    className="bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-navy-900 p-2 rounded-lg transition-colors"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </section>
 
           </div>
         </div>
