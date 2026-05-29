@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { DayFocusItem, Task, MonthlyTask, Meeting } from '@/lib/types'
 import { Plus, X, GripVertical, Clock, Check, AlertCircle, ChevronLeft, ChevronRight, CalendarDays, ArrowRight } from 'lucide-react'
@@ -78,6 +79,7 @@ interface MonthGroup {
 
 export default function DayView() {
   const supabase = createClient()
+  const router = useRouter()
 
   const [centerOffset, setCenterOffset] = useState(0)
   const [meetings, setMeetings] = useState<Meeting[]>([])
@@ -173,6 +175,7 @@ export default function DayView() {
       }).eq('id', item.monthly_task_id)
       await supabase.from('day_focus_items').update({ completed }).eq('id', item.id)
       setFocusItems(prev => prev.map(i => i.id === item.id ? { ...i, completed } : i))
+      router.refresh()
     }
   }
 
