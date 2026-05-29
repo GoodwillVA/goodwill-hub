@@ -158,21 +158,21 @@ export default function DayView() {
   // ── Toggle ────────────────────────────────────────────────────────────────
 
   async function toggleFocusItem(item: DayFocusItem) {
+    const completed = !item.completed
     if (item.item_type === 'freeform') {
-      const completed = !item.completed
       await supabase.from('day_focus_items').update({ completed }).eq('id', item.id)
       setFocusItems(prev => prev.map(i => i.id === item.id ? { ...i, completed } : i))
     } else if (item.item_type === 'task' && item.task_id) {
-      const newStatus = 'done'
-      await supabase.from('tasks').update({ status: newStatus }).eq('id', item.task_id)
-      // Remove from focus list since it's now done
-      await supabase.from('day_focus_items').delete().eq('id', item.id)
-      setFocusItems(prev => prev.filter(i => i.id !== item.id))
+      await supabase.from('tasks').update({ status: completed ? 'done' : 'todo' }).eq('id', item.task_id)
+      await supabase.from('day_focus_items').update({ completed }).eq('id', item.id)
+      setFocusItems(prev => prev.map(i => i.id === item.id ? { ...i, completed } : i))
     } else if (item.item_type === 'monthly_task' && item.monthly_task_id) {
-      const completed_at = new Date().toISOString()
-      await supabase.from('monthly_tasks').update({ completed: true, completed_at }).eq('id', item.monthly_task_id)
-      await supabase.from('day_focus_items').delete().eq('id', item.id)
-      setFocusItems(prev => prev.filter(i => i.id !== item.id))
+      await supabase.from('monthly_tasks').update({
+        completed,
+        completed_at: completed ? new Date().toISOString() : null,
+      }).eq('id', item.monthly_task_id)
+      await supabase.from('day_focus_items').update({ completed }).eq('id', item.id)
+      setFocusItems(prev => prev.map(i => i.id === item.id ? { ...i, completed } : i))
     }
   }
 
@@ -266,7 +266,7 @@ export default function DayView() {
 
   function handleDragOver(e: React.DragEvent, date: string) {
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    e.dataTransfer.dropEffect = e.dataTransfer.types.includes('application/close-task') ? 'copy' : 'move'
     setDragOverDate(date)
   }
 
@@ -277,6 +277,29 @@ export default function DayView() {
   async function handleDrop(e: React.DragEvent, targetDate: string) {
     e.preventDefault()
     setDragOverDate(null)
+
+    // Close-task drop from the dashboard Close box
+    const closeTaskRaw = e.dataTransfer.getData('application/close-task')
+    if (closeTaskRaw) {
+      try {
+        const { id, title, month_year } = JSON.parse(closeTaskRaw) as { id: string; title: string; month_year: string }
+        if (focusItems.some(fi => fi.monthly_task_id === id && fi.focus_date === targetDate)) return
+        const sort_order = focusItems.filter(i => i.focus_date === targetDate).length
+        const payload = {
+          focus_date: targetDate,
+          item_type: 'monthly_task' as const,
+          title: `${formatMonthYear(month_year)} › ${title}`,
+          monthly_task_id: id,
+          sort_order,
+          completed: false,
+        }
+        const { data, error } = await supabase.from('day_focus_items').insert(payload).select().single()
+        if (!error && data) setFocusItems(prev => [...prev, data as DayFocusItem])
+      } catch { /* ignore parse errors */ }
+      return
+    }
+
+    // Existing focus-item move between day columns
     const id = e.dataTransfer.getData('text/plain')
     if (!id) return
     const item = focusItems.find(i => i.id === id)

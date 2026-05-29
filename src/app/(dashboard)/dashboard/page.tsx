@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
-import { Clock, CalendarDays, ArrowRight, Circle } from 'lucide-react'
+import { Clock, CalendarDays, ArrowRight } from 'lucide-react'
 import { formatDate, isDueSoon, isOverdue } from '@/lib/utils'
 import { Project, MonthlyTask } from '@/lib/types'
 import Link from 'next/link'
 import DayView from './DayView'
+import CloseTaskList from './CloseTaskList'
 
 function getActiveCloseMonthStr(): string {
   const today = new Date()
@@ -124,24 +125,10 @@ export default async function DashboardPage() {
                 </div>
                 <span className="text-xs text-cream-200/60 shrink-0">{doneClose}/{totalClose}</span>
               </div>
-              <ul className="space-y-2">
-                {pendingCloseTasks.map((task: MonthlyTask) => (
-                  <li key={task.id} className="flex items-center gap-2.5">
-                    <Circle className="w-3.5 h-3.5 text-cream-200/30 shrink-0" />
-                    <span className="text-sm text-cream-100 flex-1 truncate">{task.title}</span>
-                    {task.due_date && (
-                      <span className={`text-[10px] shrink-0 font-medium ${isOverdue(task.due_date) ? 'text-red-400' : 'text-gold-400/70'}`}>
-                        {formatDate(task.due_date)}
-                      </span>
-                    )}
-                  </li>
-                ))}
-                {(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length > 14 && (
-                  <li className="text-[10px] text-cream-200/30 pl-6">
-                    +{(closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length - 14} more pending
-                  </li>
-                )}
-              </ul>
+              <CloseTaskList
+                tasks={pendingCloseTasks}
+                extraCount={Math.max(0, (closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length - 14)}
+              />
             </>
           )}
         </section>
