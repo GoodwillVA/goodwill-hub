@@ -8,7 +8,7 @@ import {
   Plus, X, CalendarDays, List, ChevronLeft, ChevronRight,
   Clock, FolderKanban, Upload, Sparkles, Copy,
   CheckCircle2, Circle, Trash2, Pencil, ArrowRight, UserPlus, Tag,
-  Send, RotateCcw, Layers, Search, MessageSquare
+  Send, RotateCcw, Layers, Search, MessageSquare, Download
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import FileAttachments from '@/components/FileAttachments'
@@ -81,6 +81,9 @@ export default function MeetingsPage() {
   const [meetingChatStreaming, setMeetingChatStreaming] = useState(false)
   const [meetingChatStreamingText, setMeetingChatStreamingText] = useState('')
   const meetingChatEndRef = useRef<HTMLDivElement>(null)
+  const meetingChatInputRef = useRef<HTMLTextAreaElement>(null)
+  const [fileAttachmentKey, setFileAttachmentKey] = useState(0)
+  const [savingChatMsg, setSavingChatMsg] = useState<number | null>(null)
 
   useEffect(() => { load() }, [])
   useEffect(() => {
@@ -374,6 +377,30 @@ export default function MeetingsPage() {
       action: { label: 'View Projects', onClick: () => { window.location.href = '/projects' } },
     })
     setPushingToProject(false)
+  }
+
+  async function saveChatResponseAsFile(content: string, msgIndex: number) {
+    if (!selected) return
+    setSavingChatMsg(msgIndex)
+    const now = new Date()
+    const dateStr = now.toISOString().slice(0, 16).replace('T', ' ').replace(':', '-')
+    const fileName = `AI Chat Note - ${dateStr}.txt`
+    const blob = new Blob([content], { type: 'text/plain' })
+    const storagePath = `meeting/${selected.id}/${Date.now()}_ai-note.txt`
+    const { error: uploadErr } = await supabase.storage.from('attachments').upload(storagePath, blob)
+    if (uploadErr) { toast.error('Failed to save note'); setSavingChatMsg(null); return }
+    await supabase.from('attachments').insert({
+      entity_type: 'meeting',
+      entity_id: selected.id,
+      file_name: fileName,
+      file_size: blob.size,
+      mime_type: 'text/plain',
+      storage_path: storagePath,
+      extracted_text: content.slice(0, 8000),
+    })
+    setFileAttachmentKey(k => k + 1)
+    setSavingChatMsg(null)
+    toast.success('AI response saved as attachment')
   }
 
   async function sendMeetingChatMessage() {
@@ -831,7 +858,7 @@ export default function MeetingsPage() {
             </section>
 
             <section>
-              <FileAttachments entityType="meeting" entityId={selected.id} />
+              <FileAttachments key={fileAttachmentKey} entityType="meeting" entityId={selected.id} />
             </section>
 
             <section>
@@ -913,23 +940,40 @@ export default function MeetingsPage() {
                 )}
               </div>
               <div className="bg-navy-800 border border-navy-600 rounded-xl overflow-hidden">
-                <div className="h-72 overflow-y-auto p-4 space-y-3">
+                <div className="h-80 overflow-y-auto p-4 space-y-3">
                   {meetingChatThread.length === 0 && !meetingChatStreaming ? (
-                    <p className="text-sm text-cream-200/30 text-center py-8">
+                    <p className="text-sm text-cream-200/30 text-center py-10">
                       Ask anything about this meeting — the transcript, decisions made, who said what, action items, or next steps.
                     </p>
                   ) : (
                     <>
                       {meetingChatThread.map((msg, i) => (
                         <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-gold-500/20 text-cream-100' : 'bg-navy-700 text-cream-100'}`}>
-                            <p className="whitespace-pre-wrap">{msg.content}</p>
-                          </div>
+                          {msg.role === 'assistant' ? (
+                            <div className="group max-w-[88%] flex flex-col gap-1">
+                              <div className="bg-navy-700 text-cream-100 rounded-xl px-3 py-2 text-sm leading-relaxed">
+                                <p className="whitespace-pre-wrap">{msg.content}</p>
+                              </div>
+                              <button
+                                onClick={() => saveChatResponseAsFile(msg.content, i)}
+                                disabled={savingChatMsg === i}
+                                className="self-start flex items-center gap-1 text-[10px] text-cream-200/0 group-hover:text-cream-200/40 hover:!text-gold-400 disabled:!text-cream-200/30 transition-colors"
+                                title="Save this response as a file attachment"
+                              >
+                                <Download className="w-3 h-3" />
+                                {savingChatMsg === i ? 'Saving…' : 'Save as note'}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="max-w-[88%] bg-gold-500/20 text-cream-100 rounded-xl px-3 py-2 text-sm leading-relaxed">
+                              <p className="whitespace-pre-wrap">{msg.content}</p>
+                            </div>
+                          )}
                         </div>
                       ))}
                       {meetingChatStreaming && (
                         <div className="flex justify-start">
-                          <div className="max-w-[85%] rounded-xl px-3 py-2 text-sm bg-navy-700 text-cream-100 leading-relaxed">
+                          <div className="max-w-[88%] rounded-xl px-3 py-2 text-sm bg-navy-700 text-cream-100 leading-relaxed">
                             <p className="whitespace-pre-wrap">{meetingChatStreamingText || '…'}</p>
                           </div>
                         </div>
@@ -938,19 +982,39 @@ export default function MeetingsPage() {
                   )}
                   <div ref={meetingChatEndRef} />
                 </div>
-                <div className="border-t border-navy-600 p-3 flex gap-2">
-                  <input
+                <div className="border-t border-navy-600 p-3 flex gap-2 items-end">
+                  <textarea
+                    ref={meetingChatInputRef}
                     value={meetingChatInput}
-                    onChange={e => setMeetingChatInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMeetingChatMessage())}
-                    placeholder="Ask about this meeting…"
+                    onChange={e => {
+                      setMeetingChatInput(e.target.value)
+                      e.target.style.height = 'auto'
+                      e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        sendMeetingChatMessage()
+                        setTimeout(() => {
+                          if (meetingChatInputRef.current) meetingChatInputRef.current.style.height = 'auto'
+                        }, 0)
+                      }
+                    }}
+                    placeholder="Ask about this meeting… (Shift+Enter for new line)"
                     disabled={meetingChatStreaming}
-                    className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none disabled:opacity-50"
+                    rows={1}
+                    className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none disabled:opacity-50 resize-none overflow-hidden leading-relaxed"
+                    style={{ minHeight: '38px', maxHeight: '120px' }}
                   />
                   <button
-                    onClick={sendMeetingChatMessage}
+                    onClick={() => {
+                      sendMeetingChatMessage()
+                      setTimeout(() => {
+                        if (meetingChatInputRef.current) meetingChatInputRef.current.style.height = 'auto'
+                      }, 0)
+                    }}
                     disabled={!meetingChatInput.trim() || meetingChatStreaming}
-                    className="bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-navy-900 p-2 rounded-lg transition-colors"
+                    className="bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-navy-900 p-2 rounded-lg transition-colors shrink-0"
                   >
                     <Send className="w-4 h-4" />
                   </button>
