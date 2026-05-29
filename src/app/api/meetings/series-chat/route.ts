@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+﻿import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { ChatMessage, ActionItem, MeetingAttendee } from '@/lib/types'
 import { fetchImageBlock, prependImageContext, ImageBlock } from '@/lib/vision'
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     const openItems = (m.action_items ?? []).filter(a => !a.done)
     const doneItems = (m.action_items ?? []).filter(a => a.done)
     const lines = [
-      `### ${m.title} — ${m.meeting_date}${m.meeting_time ? ` at ${m.meeting_time.slice(0, 5)}` : ''}`,
+      `### ${m.title} â€” ${m.meeting_date}${m.meeting_time ? ` at ${m.meeting_time.slice(0, 5)}` : ''}`,
       m.attendees?.length ? `Attendees: ${m.attendees.map(a => `${a.name}${a.position ? ` (${a.position})` : ''}`).join(', ')}` : '',
       m.notes ? `Agenda/Notes: ${m.notes}` : '',
       m.summary ? `Summary: ${m.summary}` : '',
@@ -86,10 +86,10 @@ Total meetings: ${(meetings ?? []).length}
 
 ${meetingContext || 'No meeting details available yet.'}${seriesAttachmentContext}
 
-Help Jon identify patterns across meetings in this series, track progress on recurring action items, spot topics that keep resurfacing, summarize what's been decided or agreed, draft agendas for upcoming sessions, or provide any other insight about this series. Be specific — reference actual meetings, dates, and items from the context above.`
+Help Jon identify patterns across meetings in this series, track progress on recurring action items, spot topics that keep resurfacing, summarize what's been decided or agreed, draft agendas for upcoming sessions, or provide any other insight about this series. Be specific â€” reference actual meetings, dates, and items from the context above.`
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-opus-4-8',
     max_tokens: 1024,
     system: systemPrompt,
     messages: prependImageContext(messages, imageBlocks),

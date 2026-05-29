@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+﻿import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { ChatMessage, ActionItem, MeetingAttendee } from '@/lib/types'
 import { fetchImageBlock, prependImageContext, ImageBlock } from '@/lib/vision'
@@ -54,13 +54,13 @@ export async function POST(request: Request) {
   // Build system prompt from meeting context
   const attendeeStr = (meeting?.attendees ?? []).length > 0
     ? (meeting.attendees as MeetingAttendee[]).map((a: MeetingAttendee) =>
-        `${a.name}${a.position ? ` (${a.position})` : ''}${a.organization ? ` — ${a.organization}` : ''}`
+        `${a.name}${a.position ? ` (${a.position})` : ''}${a.organization ? ` â€” ${a.organization}` : ''}`
       ).join(', ')
     : 'Not recorded'
 
   const actionItemsStr = (meeting?.action_items ?? []).length > 0
     ? (meeting.action_items as ActionItem[]).map((a: ActionItem) =>
-        `- [${a.done ? 'x' : ' '}] ${a.title}${a.owner ? ` — Owner: ${a.owner}` : ''}${a.due_date ? ` — Due: ${a.due_date}` : ''}`
+        `- [${a.done ? 'x' : ' '}] ${a.title}${a.owner ? ` â€” Owner: ${a.owner}` : ''}${a.due_date ? ` â€” Due: ${a.due_date}` : ''}`
       ).join('\n')
     : 'None'
 
@@ -87,7 +87,7 @@ You have complete context for a specific meeting. Answer questions accurately an
 ${sections.join('\n')}`
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-opus-4-8',
     max_tokens: 1024,
     system: systemPrompt,
     messages: prependImageContext(messages, imageBlocks),

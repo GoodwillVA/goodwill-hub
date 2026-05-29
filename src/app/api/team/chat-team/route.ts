@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+﻿import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { ChatMessage, AgendaItem, PendingAsk } from '@/lib/types'
 import { fetchImageBlock, prependImageContext, ImageBlock } from '@/lib/vision'
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const openAsks = ((m.pending_asks ?? []) as PendingAsk[]).filter(a => !a.resolved)
 
     const lines = [
-      `### ${m.name}${m.title ? ` — ${m.title}` : ''}`,
+      `### ${m.name}${m.title ? ` â€” ${m.title}` : ''}`,
       m.notes ? `Current work: ${m.notes}` : '',
       memberGoals.length > 0
         ? `Goals: ${memberGoals.map((g: { title: string; period: string; status: string }) =>
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
         attendees: { name: string }[]
       }) => {
         const attendeeList = (m.attendees ?? []).map((a: { name: string }) => a.name).filter(Boolean).join(', ')
-        const parts = [`### ${m.title} — ${m.meeting_date} (${m.type})`]
+        const parts = [`### ${m.title} â€” ${m.meeting_date} (${m.type})`]
         if (attendeeList) parts.push(`Attendees: ${attendeeList}`)
         if (m.summary) parts.push(`Summary: ${m.summary}`)
         else if (m.notes) parts.push(`Notes: ${m.notes}`)
@@ -108,7 +108,7 @@ ${memberContext}${meetingContext}
 Help Jon with team-wide thinking: workload distribution, identifying patterns across the team, coaching strategies, team communication, prioritization, identifying who needs support, succession planning, or anything else related to leading his accounting team effectively. Be practical and grounded in nonprofit accounting operations.${attachmentContext}`
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-opus-4-8',
     max_tokens: 1024,
     system: systemPrompt,
     messages: prependImageContext(messages, imageBlocks),

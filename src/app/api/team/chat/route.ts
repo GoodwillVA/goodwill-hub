@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+﻿import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { ChatMessage } from '@/lib/types'
 import { fetchImageBlock, prependImageContext, ImageBlock } from '@/lib/vision'
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       ? `Recent log entries:\n${logs.map((l: { log_date: string; content: string }) => `- ${l.log_date}: ${l.content}`).join('\n')}`
       : 'No log entries yet.',
     goals && goals.length > 0
-      ? `Goals:\n${goals.map((g: { title: string; period: string; status: string }) => `- ${g.title}${g.period ? ` (${g.period})` : ''} — ${g.status.replace(/_/g, ' ')}`).join('\n')}`
+      ? `Goals:\n${goals.map((g: { title: string; period: string; status: string }) => `- ${g.title}${g.period ? ` (${g.period})` : ''} â€” ${g.status.replace(/_/g, ' ')}`).join('\n')}`
       : 'No goals recorded yet.',
   ].filter(Boolean).join('\n\n')
 
@@ -47,12 +47,12 @@ export async function POST(request: Request) {
     ? `\n\n## Meeting History\nRecent team and 1:1 meetings ${member?.name} attended:\n\n${(memberMeetings ?? []).map((m: {
         title: string; meeting_date: string; type: string; notes: string | null; summary: string | null; transcript: string | null
       }) => {
-        const parts = [`### ${m.title} — ${m.meeting_date} (${m.type})`]
+        const parts = [`### ${m.title} â€” ${m.meeting_date} (${m.type})`]
         if (m.summary) parts.push(`Summary: ${m.summary}`)
         if (m.notes) parts.push(`Notes: ${m.notes}`)
         // Include transcript only when there's no summary, capped at 2000 chars
         if (!m.summary && m.transcript) {
-          const excerpt = m.transcript.length > 2000 ? m.transcript.slice(0, 2000) + '…' : m.transcript
+          const excerpt = m.transcript.length > 2000 ? m.transcript.slice(0, 2000) + 'â€¦' : m.transcript
           parts.push(`Transcript excerpt:\n${excerpt}`)
         }
         return parts.join('\n')
@@ -85,10 +85,10 @@ export async function POST(request: Request) {
 
 ${contextLines}${meetingContext}
 
-Help Jon think through performance conversations, draft feedback, develop coaching approaches, plan 1:1 agendas, work through team dynamics, recognize strengths, or address any challenge related to leading this team member. Be practical and specific — Jon manages accounting professionals in a nonprofit environment.${attachmentContext}`
+Help Jon think through performance conversations, draft feedback, develop coaching approaches, plan 1:1 agendas, work through team dynamics, recognize strengths, or address any challenge related to leading this team member. Be practical and specific â€” Jon manages accounting professionals in a nonprofit environment.${attachmentContext}`
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-opus-4-8',
     max_tokens: 1024,
     system: systemPrompt,
     messages: prependImageContext(messages, imageBlocks),

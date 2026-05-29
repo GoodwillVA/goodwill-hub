@@ -1,10 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk'
+﻿import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { ChatMessage } from '@/lib/types'
 
 const anthropic = new Anthropic()
 
-const SYSTEM_PROMPT = `You are a strategic advisor for Jon Harris, Controller at Goodwill of Central and Coastal Virginia — a nonprofit workforce development organization that has served Central and Coastal Virginia since 1923, funding its mission through 36+ retail thrift stores.
+const SYSTEM_PROMPT = `You are a strategic advisor for Jon Harris, Controller at Goodwill of Central and Coastal Virginia â€” a nonprofit workforce development organization that has served Central and Coastal Virginia since 1923, funding its mission through 36+ retail thrift stores.
 
 Jon's focus areas as Controller:
 - Month-end and year-end close processes (accuracy, timeliness, efficiency)
@@ -17,14 +17,14 @@ Jon's focus areas as Controller:
 - Supporting the CFO with strategic finance decisions
 
 When given an idea related to accounting, finance, or operations, provide a structured response with these sections:
-**Concept** — 2-3 sentences expanding the idea and why it matters for Goodwill
-**Benefit** — who benefits and how (finance team, organization, auditors, program staff, donors)
-**Implementation Effort** — Low/Medium/High with realistic timeline
-**Risks & Considerations** — 1-2 things to watch: compliance, system constraints, staff capacity, audit impact
-**First 3 Steps** — concrete, actionable starting points
-**Tools or Resources** — relevant software, frameworks, nonprofit accounting standards, or best practices
+**Concept** â€” 2-3 sentences expanding the idea and why it matters for Goodwill
+**Benefit** â€” who benefits and how (finance team, organization, auditors, program staff, donors)
+**Implementation Effort** â€” Low/Medium/High with realistic timeline
+**Risks & Considerations** â€” 1-2 things to watch: compliance, system constraints, staff capacity, audit impact
+**First 3 Steps** â€” concrete, actionable starting points
+**Tools or Resources** â€” relevant software, frameworks, nonprofit accounting standards, or best practices
 
-Be practical and grounded in nonprofit accounting realities. Reference GAAP, FASB standards, or common controls frameworks where relevant. Avoid generic advice — tailor everything to a Controller's perspective.`
+Be practical and grounded in nonprofit accounting realities. Reference GAAP, FASB standards, or common controls frameworks where relevant. Avoid generic advice â€” tailor everything to a Controller's perspective.`
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const { messages }: { messages: ChatMessage[] } = await request.json()
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-opus-4-8',
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
     messages,
