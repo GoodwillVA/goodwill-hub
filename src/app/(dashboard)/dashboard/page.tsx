@@ -123,7 +123,7 @@ export default async function DashboardPage() {
           </section>
 
         </div>
-        </div>
+
       </div>
     </div>
   )

@@ -323,7 +323,7 @@ export default function WeekCalendar() {
 
                 return (
                   <div key={di}
-                    className={`border-l border-navy-600/40 p-1.5 min-h-[90px] relative group ${isToday ? 'bg-gold-500/5' : ''}`}
+                    className={`border-l border-navy-600/40 p-1.5 min-h-[120px] relative group ${isToday ? 'bg-gold-500/5' : ''}`}
                   >
                     {/* Date number */}
                     <div className="mb-1">
