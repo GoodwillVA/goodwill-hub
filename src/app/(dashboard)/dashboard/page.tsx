@@ -1,10 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
-import { Clock, CalendarDays, ArrowRight } from 'lucide-react'
-import { formatDate, isDueSoon, isOverdue } from '@/lib/utils'
-import { Project, MonthlyTask } from '@/lib/types'
+import { ArrowRight } from 'lucide-react'
+import { MonthlyTask } from '@/lib/types'
 import Link from 'next/link'
 import DayView from './DayView'
 import CloseTaskList from './CloseTaskList'
+import WeekCalendar from './WeekCalendar'
 
 function getActiveCloseMonthStr(): string {
   const today = new Date()
@@ -27,31 +27,17 @@ function formatMonthYear(monthYear: string): string {
 export default async function DashboardPage() {
   const supabase = await createClient()
   const activeMonthStr = getActiveCloseMonthStr()
-  const todayStr = new Date().toISOString().split('T')[0]
-  const nextWeekDate = new Date()
-  nextWeekDate.setDate(nextWeekDate.getDate() + 7)
-  const nextWeekStr = nextWeekDate.toISOString().split('T')[0]
 
-  const [
-    { data: projects },
-    { data: closeTasks },
-    { data: upcomingMeetings },
-  ] = await Promise.all([
-    supabase.from('projects').select('*').eq('is_general', false).order('due_date', { ascending: true, nullsFirst: false }),
-    supabase.from('monthly_tasks').select('*').eq('month_year', activeMonthStr).order('sort_order', { ascending: true }),
-    supabase.from('meetings').select('id, title, meeting_date, meeting_time, type')
-      .gte('meeting_date', todayStr).neq('status', 'cancelled')
-      .order('meeting_date', { ascending: true }).limit(7),
-  ])
+  const { data: closeTasks } = await supabase
+    .from('monthly_tasks')
+    .select('*')
+    .eq('month_year', activeMonthStr)
+    .order('sort_order', { ascending: true })
 
   const totalClose = (closeTasks ?? []).length
   const doneClose = (closeTasks ?? []).filter((t: MonthlyTask) => t.completed).length
   const closePct = totalClose > 0 ? Math.round((doneClose / totalClose) * 100) : 0
-  const openProjects = (projects ?? []).filter((p: Project) => p.status !== 'delivered' && !p.is_general).length
-  const meetingsThisWeek = (upcomingMeetings ?? []).filter((m: { meeting_date: string }) => m.meeting_date <= nextWeekStr).length
-  const dueSoonProjects = (projects ?? []).filter(
-    (p: Project) => (isDueSoon(p.due_date ?? undefined) || isOverdue(p.due_date ?? undefined)) && p.status !== 'delivered' && !p.is_general
-  )
+
   const pendingCloseTasks = (closeTasks ?? [])
     .filter((t: MonthlyTask) => !t.completed)
     .sort((a: MonthlyTask, b: MonthlyTask) => {
@@ -60,7 +46,6 @@ export default async function DashboardPage() {
       if (!b.due_date) return -1
       return a.due_date.localeCompare(b.due_date)
     })
-    .slice(0, 14)
 
   const easternHour = parseInt(
     new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(new Date())
@@ -77,138 +62,70 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* 3-Day View */}
+      {/* 3-Day Focus View */}
       <DayView />
 
-      {/* Stats — 3 cards */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <Link href="/monthly-tasks">
-          <StatCard
-            label={`${formatMonthYear(activeMonthStr)} Close`}
-            value={totalClose > 0 ? `${doneClose}/${totalClose}` : '—'}
-            sub={totalClose > 0 ? `${closePct}% complete` : 'No tasks yet'}
-            color="text-blue-400"
-            pct={totalClose > 0 ? closePct : null}
-          />
-        </Link>
-        <Link href="/meetings">
-          <StatCard label="Meetings This Week" value={String(meetingsThisWeek)} color="text-purple-400" />
-        </Link>
-        <Link href="/projects">
-          <StatCard label="Open Projects" value={String(openProjects)} color="text-gold-400" />
-        </Link>
-      </div>
+      {/* Calendar + Close sidebar */}
+      <div className="flex gap-6 items-start">
 
-      {/* Widgets — 3 columns */}
-      <div className="grid grid-cols-3 gap-6">
-
-        {/* Active Close */}
-        <section className="bg-navy-800 border border-navy-600 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-cream-200/70 uppercase tracking-wider">
-              {formatMonthYear(activeMonthStr)} Close
-            </h2>
-            <Link href="/monthly-tasks" className="text-[10px] text-gold-400 hover:text-gold-300 flex items-center gap-1 transition-colors">
-              View all <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-          {totalClose === 0 ? (
-            <p className="text-cream-200/40 text-sm">
-              No close tasks yet.{' '}
-              <Link href="/monthly-tasks" className="text-gold-400 hover:underline">Add tasks →</Link>
-            </p>
-          ) : (
-            <>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex-1 h-2 bg-navy-600 rounded-full overflow-hidden">
-                  <div className="h-full bg-gold-500 rounded-full transition-all" style={{ width: `${closePct}%` }} />
-                </div>
-                <span className="text-xs text-cream-200/60 shrink-0">{doneClose}/{totalClose}</span>
-              </div>
-              <CloseTaskList
-                tasks={pendingCloseTasks}
-                extraCount={Math.max(0, (closeTasks ?? []).filter((t: MonthlyTask) => !t.completed).length - 14)}
-              />
-            </>
-          )}
-        </section>
-
-        {/* Upcoming Meetings */}
-        <section className="bg-navy-800 border border-navy-600 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-cream-200/70 uppercase tracking-wider">Upcoming Meetings</h2>
-            <Link href="/meetings" className="text-[10px] text-gold-400 hover:text-gold-300 flex items-center gap-1 transition-colors">
-              View all <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-          {(upcomingMeetings ?? []).length === 0 ? (
-            <p className="text-cream-200/40 text-sm">No upcoming meetings scheduled.</p>
-          ) : (
-            <ul className="divide-y divide-navy-600">
-              {(upcomingMeetings ?? []).map((m: { id: string; title: string; meeting_date: string; meeting_time: string | null }) => (
-                <li key={m.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <CalendarDays className="w-3.5 h-3.5 text-gold-500 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-cream-100 truncate">{m.title}</p>
-                    <p className="text-[10px] text-cream-200/40">
-                      {formatDate(m.meeting_date)}{m.meeting_time ? ` · ${m.meeting_time.slice(0, 5)}` : ''}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        {/* Projects Due Soon */}
-        <section className="bg-navy-800 border border-navy-600 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-cream-200/70 uppercase tracking-wider">Projects Due Soon</h2>
-            <Link href="/projects" className="text-[10px] text-gold-400 hover:text-gold-300 flex items-center gap-1 transition-colors">
-              View all <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-          {dueSoonProjects.length === 0 ? (
-            <p className="text-cream-200/40 text-sm">No projects due in the next 7 days.</p>
-          ) : (
-            <ul className="divide-y divide-navy-600">
-              {dueSoonProjects.map((p: Project) => {
-                const overdue = isOverdue(p.due_date ?? undefined)
-                return (
-                  <li key={p.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                    <Clock className={`w-3.5 h-3.5 shrink-0 ${overdue ? 'text-red-400' : 'text-gold-500'}`} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-cream-100 truncate">{p.name}</p>
-                      {p.area && <p className="text-[10px] text-cream-200/40">{p.area}</p>}
-                    </div>
-                    <span className={`text-xs shrink-0 ${overdue ? 'text-red-400' : 'text-cream-200/40'}`}>
-                      {formatDate(p.due_date ?? undefined)}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </section>
-
-      </div>
-    </div>
-  )
-}
-
-function StatCard({ label, value, sub, color, pct }: {
-  label: string; value: string; sub?: string; color: string; pct?: number | null
-}) {
-  return (
-    <div className="bg-navy-800 border border-navy-600 rounded-xl p-6 hover:border-navy-500 transition-colors cursor-pointer h-full">
-      <p className="text-xs font-medium text-cream-200/50 uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-3xl font-bold ${color}`}>{value}</p>
-      {sub && <p className="text-[11px] text-cream-200/40 mt-1">{sub}</p>}
-      {pct !== null && pct !== undefined && (
-        <div className="mt-3 h-1.5 bg-navy-600 rounded-full overflow-hidden">
-          <div className="h-full bg-gold-500/60 rounded-full" style={{ width: `${pct}%` }} />
+        {/* Calendar — takes remaining width */}
+        <div className="flex-1 min-w-0">
+          <WeekCalendar />
         </div>
-      )}
+
+        {/* Close sidebar */}
+        <div className="w-[22rem] shrink-0 flex flex-col gap-4 sticky top-8">
+
+          {/* Stat card */}
+          <Link href="/monthly-tasks">
+            <div className="bg-navy-800 border border-navy-600 rounded-xl p-5 hover:border-navy-500 transition-colors cursor-pointer">
+              <p className="text-xs font-medium text-cream-200/50 uppercase tracking-wider mb-2">
+                {formatMonthYear(activeMonthStr)} Close
+              </p>
+              <p className="text-3xl font-bold text-blue-400">
+                {totalClose > 0 ? `${doneClose}/${totalClose}` : '—'}
+              </p>
+              <p className="text-[11px] text-cream-200/40 mt-1">
+                {totalClose > 0 ? `${closePct}% complete` : 'No tasks yet'}
+              </p>
+              {totalClose > 0 && (
+                <div className="mt-3 h-1.5 bg-navy-600 rounded-full overflow-hidden">
+                  <div className="h-full bg-gold-500/60 rounded-full transition-all" style={{ width: `${closePct}%` }} />
+                </div>
+              )}
+            </div>
+          </Link>
+
+          {/* Task list */}
+          <section className="bg-navy-800 border border-navy-600 rounded-xl p-5 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-cream-200/70 uppercase tracking-wider">Pending Tasks</h2>
+              <Link href="/monthly-tasks" className="text-[10px] text-gold-400 hover:text-gold-300 flex items-center gap-1 transition-colors">
+                View all <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            {totalClose === 0 ? (
+              <p className="text-cream-200/40 text-sm">
+                No close tasks yet.{' '}
+                <Link href="/monthly-tasks" className="text-gold-400 hover:underline">Add tasks →</Link>
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex-1 h-2 bg-navy-600 rounded-full overflow-hidden">
+                    <div className="h-full bg-gold-500 rounded-full transition-all" style={{ width: `${closePct}%` }} />
+                  </div>
+                  <span className="text-xs text-cream-200/60 shrink-0">{doneClose}/{totalClose}</span>
+                </div>
+                <div className="overflow-y-auto max-h-[60vh]">
+                  <CloseTaskList tasks={pendingCloseTasks} extraCount={0} />
+                </div>
+              </>
+            )}
+          </section>
+
+        </div>
+      </div>
     </div>
   )
 }
