@@ -50,12 +50,12 @@ interface CellItem {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const ITEM_STYLES: Record<ItemType, string> = {
-  meeting:  'bg-blue-500/20 text-blue-300',
-  project:  'bg-gold-500/20 text-gold-400',
-  pto:      'bg-emerald-500/20 text-emerald-300',
-  team_pto: 'bg-purple-500/20 text-purple-300',
-  holiday:  'bg-orange-500/20 text-orange-300',
-  note:     'bg-navy-600/60 text-cream-200/50',
+  meeting:  'bg-blue-500/30 text-cream-100',
+  project:  'bg-gold-500/30 text-cream-100',
+  pto:      'bg-emerald-500/30 text-cream-100',
+  team_pto: 'bg-purple-500/30 text-cream-100',
+  holiday:  'bg-orange-500/30 text-cream-100',
+  note:     'bg-navy-600/80 text-cream-100',
 }
 
 const LEGEND: [ItemType, string][] = [
@@ -277,16 +277,16 @@ export default function WeekCalendar() {
           {LEGEND.map(([type, label]) => (
             <div key={type} className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${ITEM_STYLES[type].split(' ')[0]}`} />
-              <span className="text-[10px] text-cream-200/40">{label}</span>
+              <span className="text-xs text-cream-200/60">{label}</span>
             </div>
           ))}
         </div>
 
         {/* Day column headers */}
-        <div className="grid border-b border-navy-600" style={{ gridTemplateColumns: '3.5rem repeat(5, 1fr)' }}>
+        <div className="grid border-b border-navy-600" style={{ gridTemplateColumns: '5rem repeat(5, 1fr)' }}>
           <div />
           {DAYS.map(d => (
-            <div key={d} className="text-center text-[10px] font-semibold text-cream-200/35 uppercase tracking-wider py-2 border-l border-navy-600/40">
+            <div key={d} className="text-center text-xs font-semibold text-cream-200/60 uppercase tracking-wider py-2 border-l border-navy-600/40">
               {d}
             </div>
           ))}
@@ -299,16 +299,16 @@ export default function WeekCalendar() {
 
           return (
             <div key={wi} className="grid border-b border-navy-600 last:border-b-0"
-              style={{ gridTemplateColumns: '3.5rem repeat(5, 1fr)' }}>
+              style={{ gridTemplateColumns: '5rem repeat(5, 1fr)' }}>
 
               {/* Week label */}
               <div className="p-1.5 flex flex-col justify-start gap-0.5 border-r border-navy-600/40">
                 {showMonth && (
-                  <span className="text-[9px] font-bold text-cream-200/50 uppercase tracking-wide leading-none">
+                  <span className="text-xs font-bold text-cream-200/80 uppercase tracking-wide leading-none">
                     {week[0].toLocaleDateString('en-US', { month: 'short' })}
                   </span>
                 )}
-                <span className="text-[9px] text-cream-200/25 leading-none mt-0.5">
+                <span className="text-xs text-cream-200/50 leading-none mt-0.5">
                   {week[0].getDate()}–{week[4].getDate()}
                 </span>
               </div>
@@ -332,7 +332,7 @@ export default function WeekCalendar() {
                           {day.getDate()}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-semibold text-cream-200/35">{day.getDate()}</span>
+                        <span className="text-xs font-semibold text-cream-200/60">{day.getDate()}</span>
                       )}
                     </div>
 
@@ -359,7 +359,7 @@ export default function WeekCalendar() {
                         </div>
                       ))}
                       {overflow > 0 && (
-                        <div className="text-[9px] text-cream-200/25 pl-1.5">+{overflow} more</div>
+                        <div className="text-[10px] text-cream-200/50 pl-1.5">+{overflow} more</div>
                       )}
                     </div>
 

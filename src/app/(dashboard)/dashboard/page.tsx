@@ -62,18 +62,16 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* 3-Day Focus View */}
-      <DayView />
-
-      {/* Calendar + Close sidebar */}
+      {/* Main layout: left column (DayView + Calendar) + right sidebar (Close) */}
       <div className="flex gap-6 items-start">
 
-        {/* Calendar — takes remaining width */}
-        <div className="flex-1 min-w-0">
+        {/* Left column — stacks 3-day view and calendar */}
+        <div className="flex-1 min-w-0 flex flex-col gap-6">
+          <DayView />
           <WeekCalendar />
         </div>
 
-        {/* Close sidebar */}
+        {/* Close sidebar — spans both left sections */}
         <div className="w-[22rem] shrink-0 flex flex-col gap-4 sticky top-8">
 
           {/* Stat card */}
@@ -124,6 +122,7 @@ export default async function DashboardPage() {
             )}
           </section>
 
+        </div>
         </div>
       </div>
     </div>
