@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   let systemPrompt: string
 
   if (isGeneral) {
-    systemPrompt = `You are a strategic advisor for Jon Harris, Controller at Goodwill of Central and Coastal Virginia â€” a nonprofit workforce development organization that has served Central and Coastal Virginia since 1923, funded through 36+ retail thrift stores.
+    systemPrompt = `You are a strategic advisor for Jon Harris, Controller at Goodwill of Central and Coastal Virginia — a nonprofit workforce development organization that has served Central and Coastal Virginia since 1923, funded through 36+ retail thrift stores.
 
 Jon's focus areas:
 - Month-end and year-end close processes
@@ -79,10 +79,10 @@ You can help with anything: brainstorming ideas, drafting communications, analyz
       project?.description ? `Description: ${project.description}` : '',
       project?.due_date ? `Due date: ${project.due_date}` : '',
       openTasks.length > 0
-        ? `Open tasks (${openTasks.length}): ${openTasks.map((t: { title: string }) => t.title).join(' Â· ')}`
+        ? `Open tasks (${openTasks.length}): ${openTasks.map((t: { title: string }) => t.title).join(' · ')}`
         : 'No open tasks',
       doneTasks.length > 0
-        ? `Completed tasks (${doneTasks.length}): ${doneTasks.map((t: { title: string }) => t.title).join(' Â· ')}`
+        ? `Completed tasks (${doneTasks.length}): ${doneTasks.map((t: { title: string }) => t.title).join(' · ')}`
         : '',
       recentMeetings.length > 0
         ? `Recent meetings:\n${recentMeetings.map((m: { title: string; meeting_date: string; summary: string | null; action_items: { title: string; done: boolean }[] | null }) => {
@@ -99,7 +99,7 @@ You can help with anything: brainstorming ideas, drafting communications, analyz
 
 ${contextLines}
 
-Help Jon brainstorm approaches, identify risks, draft communications, think through decisions, and move this project forward. Be specific and practical â€” Jon is a Controller at a nonprofit, so ground your advice in accounting, finance, and operations realities. Reference GAAP, FASB standards, or controls frameworks where relevant.${attachmentContext}`
+Help Jon brainstorm approaches, identify risks, draft communications, think through decisions, and move this project forward. Be specific and practical — Jon is a Controller at a nonprofit, so ground your advice in accounting, finance, and operations realities. Reference GAAP, FASB standards, or controls frameworks where relevant.${attachmentContext}`
   }
 
   const stream = anthropic.messages.stream({

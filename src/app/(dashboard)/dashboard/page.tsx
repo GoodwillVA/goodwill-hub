@@ -62,17 +62,18 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Main layout: left column (DayView + Calendar) + right sidebar (Close) */}
-      <div className="flex gap-6 items-start">
+      {/* Main layout: 2-column grid — DayView + Calendar left, Close sidebar right */}
+      <div className="grid gap-x-6 gap-y-2" style={{ gridTemplateColumns: '1fr 22rem', gridTemplateRows: 'auto 1fr' }}>
 
-        {/* Left column — stacks 3-day view and calendar */}
-        <div className="flex-1 min-w-0 flex flex-col gap-2">
-          <DayView />
-          <WeekCalendar />
-        </div>
+        {/* DayView — row 1, col 1 */}
+        <div><DayView /></div>
 
-        {/* Close sidebar — spans both left sections */}
-        <div className="w-[22rem] shrink-0 flex flex-col gap-4 sticky top-8">
+        {/* Close sidebar — spans both rows, col 2 */}
+        <div className="row-span-2 flex flex-col gap-4 sticky top-8">
+          {/* Spacer to align stat card with DayView boxes (matches DayView section header height) */}
+          <div className="flex items-center h-[28px] mb-0">
+            <p className="text-sm font-semibold text-cream-100 uppercase tracking-wider">Close Tasks</p>
+          </div>
 
           {/* Stat card */}
           <Link href="/monthly-tasks">
@@ -123,6 +124,9 @@ export default async function DashboardPage() {
           </section>
 
         </div>
+
+        {/* WeekCalendar — row 2, col 1 */}
+        <div><WeekCalendar /></div>
 
       </div>
     </div>

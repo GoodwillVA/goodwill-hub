@@ -84,6 +84,11 @@ export default function MeetingsPage() {
   const meetingChatInputRef = useRef<HTMLTextAreaElement>(null)
   const [fileAttachmentKey, setFileAttachmentKey] = useState(0)
   const [savingChatMsg, setSavingChatMsg] = useState<number | null>(null)
+  const [assignItem, setAssignItem] = useState<ActionItem | null>(null)
+  const [assignMode, setAssignMode] = useState<'project' | 'focus' | null>(null)
+  const [assignProjectId, setAssignProjectId] = useState('')
+  const [assignDate, setAssignDate] = useState('')
+  const [assignSaving, setAssignSaving] = useState(false)
 
   useEffect(() => { load() }, [])
   useEffect(() => {
@@ -377,6 +382,48 @@ export default function MeetingsPage() {
       action: { label: 'View Projects', onClick: () => { window.location.href = '/projects' } },
     })
     setPushingToProject(false)
+  }
+
+  function openAssign(item: ActionItem, mode: 'project' | 'focus') {
+    setAssignItem(item)
+    setAssignMode(mode)
+    setAssignProjectId('')
+    setAssignDate(new Date().toISOString().split('T')[0])
+  }
+
+  function closeAssign() {
+    setAssignItem(null)
+    setAssignMode(null)
+    setAssignSaving(false)
+  }
+
+  async function saveAssignToProject() {
+    if (!assignItem || !assignProjectId) return
+    setAssignSaving(true)
+    const { error } = await supabase.from('tasks').insert({
+      project_id: assignProjectId,
+      title: assignItem.owner ? `${assignItem.owner}: ${assignItem.title}` : assignItem.title,
+      status: 'todo',
+      due_date: assignItem.due_date ?? null,
+    })
+    if (error) { toast.error('Failed to add to project'); setAssignSaving(false); return }
+    toast.success('Added to project', { action: { label: 'View Projects', onClick: () => { window.location.href = '/projects' } } })
+    closeAssign()
+  }
+
+  async function saveAssignToFocus() {
+    if (!assignItem || !assignDate) return
+    setAssignSaving(true)
+    const { error } = await supabase.from('day_focus_items').insert({
+      focus_date: assignDate,
+      item_type: 'freeform',
+      title: assignItem.title,
+      sort_order: 0,
+      completed: false,
+    })
+    if (error) { toast.error('Failed to add to focus list'); setAssignSaving(false); return }
+    toast.success('Added to focus list for ' + assignDate)
+    closeAssign()
   }
 
   async function saveChatResponseAsFile(content: string, msgIndex: number) {
@@ -907,7 +954,7 @@ export default function MeetingsPage() {
                 </div>
                 <ul className="space-y-2">
                   {actionItems.map(item => (
-                    <li key={item.id} className="flex items-start gap-3 p-4 bg-navy-700 rounded-xl border border-navy-600">
+                    <li key={item.id} className="group/ai flex items-start gap-3 p-4 bg-navy-700 rounded-xl border border-navy-600">
                       <button onClick={() => toggleActionItem(item)} className="mt-0.5 shrink-0">
                         {item.done ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <Circle className="w-5 h-5 text-cream-200/30 hover:text-cream-200/60" />}
                       </button>
@@ -918,9 +965,76 @@ export default function MeetingsPage() {
                           {item.due_date && <span className="text-sm text-gold-400/70">{formatDate(item.due_date)}</span>}
                         </div>
                       </div>
+                      {!item.done && (
+                        <div className="flex gap-0.5 shrink-0 opacity-0 group-hover/ai:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => openAssign(item, 'project')}
+                            title="Add to a project"
+                            className="p-1.5 text-cream-200/40 hover:text-blue-400 hover:bg-navy-600 rounded-lg transition-colors"
+                          >
+                            <FolderKanban className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openAssign(item, 'focus')}
+                            title="Add to daily focus list"
+                            className="p-1.5 text-cream-200/40 hover:text-gold-400 hover:bg-navy-600 rounded-lg transition-colors"
+                          >
+                            <CalendarDays className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
+
+                {/* Per-item assignment panel */}
+                {assignItem && assignMode && (
+                  <div className="mt-3 p-4 bg-navy-700/80 border border-gold-500/30 rounded-xl">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div>
+                        <p className="text-sm font-semibold text-cream-100">
+                          {assignMode === 'project' ? 'Add to project' : 'Add to focus list'}
+                        </p>
+                        <p className="text-xs text-cream-200/50 mt-0.5 line-clamp-1">"{assignItem.title}"</p>
+                      </div>
+                      <button onClick={closeAssign} className="text-cream-200/40 hover:text-cream-100 shrink-0 mt-0.5">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {assignMode === 'project' && (
+                      <select value={assignProjectId} onChange={e => setAssignProjectId(e.target.value)}
+                        className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 focus:border-gold-500 focus:outline-none mb-3">
+                        <option value="">Select a project…</option>
+                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    )}
+
+                    {assignMode === 'focus' && (
+                      <div className="mb-3">
+                        <label className="block text-xs text-cream-200/50 mb-1.5">Date to appear on focus list</label>
+                        <input type="date" value={assignDate}
+                          onChange={e => setAssignDate(e.target.value)}
+                          className="w-full bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 focus:border-gold-500 focus:outline-none [color-scheme:dark]"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button onClick={closeAssign}
+                        className="flex-1 bg-navy-600 hover:bg-navy-500 text-cream-100 text-sm py-2 rounded-lg transition-colors">
+                        Cancel
+                      </button>
+                      <button
+                        onClick={assignMode === 'project' ? saveAssignToProject : saveAssignToFocus}
+                        disabled={assignSaving || (assignMode === 'project' ? !assignProjectId : !assignDate)}
+                        className="flex-1 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-navy-900 text-sm font-semibold py-2 rounded-lg transition-colors"
+                      >
+                        {assignSaving ? 'Saving…' : assignMode === 'project' ? 'Add to Project' : 'Add to Focus'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </section>
             )}
 

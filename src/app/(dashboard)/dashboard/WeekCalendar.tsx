@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -109,7 +109,6 @@ export default function WeekCalendar() {
   const supabase = createClient()
   const router = useRouter()
 
-  const [weekOffset, setWeekOffset] = useState(0)
   const [meetings, setMeetings] = useState<CalMeeting[]>([])
   const [projects, setProjects] = useState<CalProject[]>([])
   const [calEvents, setCalEvents] = useState<CalEvent[]>([])
@@ -118,26 +117,38 @@ export default function WeekCalendar() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const todayWeekRef = useRef<HTMLDivElement>(null)
+
   const todayStr = useMemo(() => toDateStr(new Date()), [])
+
+  // Show 4 past weeks + 16 future weeks = 20 total
+  const PAST_WEEKS = 4
+  const TOTAL_WEEKS = 20
 
   const weeks = useMemo<Date[][]>(() => {
     const base = getMondayOfWeek(new Date())
-    base.setDate(base.getDate() + weekOffset * 7)
-    return Array.from({ length: 4 }, (_, wi) =>
+    base.setDate(base.getDate() - PAST_WEEKS * 7)
+    return Array.from({ length: TOTAL_WEEKS }, (_, wi) =>
       Array.from({ length: 5 }, (_, di) => {
         const d = new Date(base)
         d.setDate(d.getDate() + wi * 7 + di)
         return d
       })
     )
-  }, [weekOffset])
+  }, [])
 
-  const [minDate, maxDate] = useMemo(() => [
-    toDateStr(weeks[0][0]),
-    toDateStr(weeks[3][4]),
-  ], [weeks])
+  const minDate = useMemo(() => toDateStr(weeks[0][0]), [weeks])
+  const maxDate = useMemo(() => toDateStr(weeks[TOTAL_WEEKS - 1][4]), [weeks])
 
   useEffect(() => { loadData() }, [minDate, maxDate]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to today's week on mount
+  useEffect(() => {
+    if (todayWeekRef.current) {
+      todayWeekRef.current.scrollIntoView({ block: 'start' })
+    }
+  }, [])
 
   useEffect(() => {
     supabase.from('team_members').select('id, name')
@@ -236,40 +247,19 @@ export default function WeekCalendar() {
     toast.success('Removed')
   }
 
-  const periodLabel = useMemo(() => {
-    const s = weeks[0][0]
-    const e = weeks[3][4]
-    const sf = s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    const ef = e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    return `${sf} – ${ef}`
-  }, [weeks])
-
   return (
     <>
       <div className="bg-navy-800 border border-navy-600 rounded-xl overflow-hidden">
 
         {/* Header */}
         <div className="px-4 py-3 border-b border-navy-600 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-cream-100 uppercase tracking-wider">Calendar</h2>
-            <span className="text-xs text-cream-100">{periodLabel}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            {weekOffset !== 0 && (
-              <button onClick={() => setWeekOffset(0)}
-                className="text-[11px] text-gold-400 hover:text-gold-300 px-2 py-1 rounded transition-colors mr-1">
-                Today
-              </button>
-            )}
-            <button onClick={() => setWeekOffset(w => w - 4)}
-              className="p-1.5 text-cream-100 hover:bg-navy-700 rounded-lg transition-colors">
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={() => setWeekOffset(w => w + 4)}
-              className="p-1.5 text-cream-100 hover:bg-navy-700 rounded-lg transition-colors">
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <h2 className="text-sm font-semibold text-cream-100 uppercase tracking-wider">Calendar</h2>
+          <button
+            onClick={() => todayWeekRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="text-[11px] text-gold-400 hover:text-gold-300 px-2 py-1 rounded transition-colors"
+          >
+            Today
+          </button>
         </div>
 
         {/* Legend */}
@@ -292,13 +282,20 @@ export default function WeekCalendar() {
           ))}
         </div>
 
-        {/* Weeks */}
+        {/* Weeks — vertically scrollable */}
+        <div
+          ref={scrollContainerRef}
+          className="overflow-y-auto overflow-x-hidden"
+          style={{ height: 'calc(100vh - 340px)', minHeight: '420px' }}
+        >
         {weeks.map((week, wi) => {
           const prevMon = wi > 0 ? weeks[wi - 1][0] : null
           const showMonth = wi === 0 || week[0].getMonth() !== prevMon!.getMonth()
+          const isCurrentWeek = week.some(d => toDateStr(d) === todayStr)
 
           return (
-            <div key={wi} className="grid border-b border-navy-600 last:border-b-0"
+            <div key={wi} ref={isCurrentWeek ? todayWeekRef : undefined}
+              className="grid border-b border-navy-600 last:border-b-0"
               style={{ gridTemplateColumns: '5rem repeat(5, 1fr)' }}>
 
               {/* Week label */}
@@ -376,6 +373,7 @@ export default function WeekCalendar() {
             </div>
           )
         })}
+        </div>
       </div>
 
       {/* Add Event Modal */}

@@ -54,13 +54,13 @@ export async function POST(request: Request) {
   // Build system prompt from meeting context
   const attendeeStr = (meeting?.attendees ?? []).length > 0
     ? (meeting.attendees as MeetingAttendee[]).map((a: MeetingAttendee) =>
-        `${a.name}${a.position ? ` (${a.position})` : ''}${a.organization ? ` â€” ${a.organization}` : ''}`
+        `${a.name}${a.position ? ` (${a.position})` : ''}${a.organization ? ` — ${a.organization}` : ''}`
       ).join(', ')
     : 'Not recorded'
 
   const actionItemsStr = (meeting?.action_items ?? []).length > 0
     ? (meeting.action_items as ActionItem[]).map((a: ActionItem) =>
-        `- [${a.done ? 'x' : ' '}] ${a.title}${a.owner ? ` â€” Owner: ${a.owner}` : ''}${a.due_date ? ` â€” Due: ${a.due_date}` : ''}`
+        `- [${a.done ? 'x' : ' '}] ${a.title}${a.owner ? ` — Owner: ${a.owner}` : ''}${a.due_date ? ` — Due: ${a.due_date}` : ''}`
       ).join('\n')
     : 'None'
 

@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const openAsks = ((m.pending_asks ?? []) as PendingAsk[]).filter(a => !a.resolved)
 
     const lines = [
-      `### ${m.name}${m.title ? ` â€” ${m.title}` : ''}`,
+      `### ${m.name}${m.title ? ` — ${m.title}` : ''}`,
       m.notes ? `Current work: ${m.notes}` : '',
       memberGoals.length > 0
         ? `Goals: ${memberGoals.map((g: { title: string; period: string; status: string }) =>
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
         attendees: { name: string }[]
       }) => {
         const attendeeList = (m.attendees ?? []).map((a: { name: string }) => a.name).filter(Boolean).join(', ')
-        const parts = [`### ${m.title} â€” ${m.meeting_date} (${m.type})`]
+        const parts = [`### ${m.title} — ${m.meeting_date} (${m.type})`]
         if (attendeeList) parts.push(`Attendees: ${attendeeList}`)
         if (m.summary) parts.push(`Summary: ${m.summary}`)
         else if (m.notes) parts.push(`Notes: ${m.notes}`)

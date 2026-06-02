@@ -18,22 +18,22 @@ Given a meeting transcript and context, return a JSON object with exactly these 
 Format the "summary" value as plain text with the following sections. Use exactly these all-caps headers. Only include a section if it has meaningful content.
 
 OVERVIEW
-1â€“2 sentences covering what this meeting was about and the primary outcome.
+1–2 sentences covering what this meeting was about and the primary outcome.
 
 KEY DISCUSSION POINTS
-â€¢ One concise sentence per significant topic. Include key names, numbers, or dates where they matter.
+• One concise sentence per significant topic. Include key names, numbers, or dates where they matter.
 
 DECISIONS MADE
-â€¢ Each decision in one clear sentence with just enough context to understand it.
+• Each decision in one clear sentence with just enough context to understand it.
 
 OPEN QUESTIONS & UNRESOLVED ITEMS
-â€¢ Items flagged for follow-up or left unresolved.
+• Items flagged for follow-up or left unresolved.
 
 CONTEXT & BACKGROUND NOTED
-â€¢ Only if notable background or constraints were mentioned that inform future work.
+• Only if notable background or constraints were mentioned that inform future work.
 
 Guidelines:
-- Keep bullets tight â€” one sentence each unless more is truly needed
+- Keep bullets tight — one sentence each unless more is truly needed
 - Name people, amounts, and dates when relevant
 - Action items: be specific about who, what, and when
 - Omit sections that have no content
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     ? `Meeting context:\n${context}${attachmentContext}\n\nTranscript:\n${transcript}`
     : `Transcript:\n${transcript}${attachmentContext}`
 
-  // Build content array â€” add images alongside text so Claude can see them
+  // Build content array — add images alongside text so Claude can see them
   const userContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = [
     { type: 'text', text: textContent },
     ...imageBlocks,
