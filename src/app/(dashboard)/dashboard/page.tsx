@@ -55,9 +55,9 @@ export default async function DashboardPage() {
   return (
     <div className="p-8 w-full">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-cream-100">{greeting}, Jon</h1>
-        <p className="text-cream-200/50 text-sm mt-1">
+      <div className="mb-3 flex items-baseline gap-3">
+        <h1 className="text-xl font-bold text-cream-100">{greeting}, Jon</h1>
+        <p className="text-cream-100 text-sm">
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
       </div>
@@ -66,7 +66,7 @@ export default async function DashboardPage() {
       <div className="flex gap-6 items-start">
 
         {/* Left column — stacks 3-day view and calendar */}
-        <div className="flex-1 min-w-0 flex flex-col gap-6">
+        <div className="flex-1 min-w-0 flex flex-col gap-2">
           <DayView />
           <WeekCalendar />
         </div>
@@ -77,13 +77,13 @@ export default async function DashboardPage() {
           {/* Stat card */}
           <Link href="/monthly-tasks">
             <div className="bg-navy-800 border border-navy-600 rounded-xl p-5 hover:border-navy-500 transition-colors cursor-pointer">
-              <p className="text-xs font-medium text-cream-200/50 uppercase tracking-wider mb-2">
+              <p className="text-xs font-medium text-cream-100 uppercase tracking-wider mb-2">
                 {formatMonthYear(activeMonthStr)} Close
               </p>
               <p className="text-3xl font-bold text-blue-400">
                 {totalClose > 0 ? `${doneClose}/${totalClose}` : '—'}
               </p>
-              <p className="text-[11px] text-cream-200/40 mt-1">
+              <p className="text-[11px] text-cream-100 mt-1">
                 {totalClose > 0 ? `${closePct}% complete` : 'No tasks yet'}
               </p>
               {totalClose > 0 && (
@@ -97,7 +97,7 @@ export default async function DashboardPage() {
           {/* Task list */}
           <section className="bg-navy-800 border border-navy-600 rounded-xl p-5 flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-cream-200/70 uppercase tracking-wider">Pending Tasks</h2>
+              <h2 className="text-sm font-semibold text-cream-100 uppercase tracking-wider">Pending Tasks</h2>
               <Link href="/monthly-tasks" className="text-[10px] text-gold-400 hover:text-gold-300 flex items-center gap-1 transition-colors">
                 View all <ArrowRight className="w-3 h-3" />
               </Link>
@@ -113,7 +113,7 @@ export default async function DashboardPage() {
                   <div className="flex-1 h-2 bg-navy-600 rounded-full overflow-hidden">
                     <div className="h-full bg-gold-500 rounded-full transition-all" style={{ width: `${closePct}%` }} />
                   </div>
-                  <span className="text-xs text-cream-200/60 shrink-0">{doneClose}/{totalClose}</span>
+                  <span className="text-xs text-cream-100 shrink-0">{doneClose}/{totalClose}</span>
                 </div>
                 <div className="overflow-y-auto max-h-[60vh]">
                   <CloseTaskList tasks={pendingCloseTasks} extraCount={0} />

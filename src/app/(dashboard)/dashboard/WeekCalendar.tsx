@@ -251,8 +251,8 @@ export default function WeekCalendar() {
         {/* Header */}
         <div className="px-4 py-3 border-b border-navy-600 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-cream-200/70 uppercase tracking-wider">Calendar</h2>
-            <span className="text-xs text-cream-200/40">{periodLabel}</span>
+            <h2 className="text-sm font-semibold text-cream-100 uppercase tracking-wider">Calendar</h2>
+            <span className="text-xs text-cream-100">{periodLabel}</span>
           </div>
           <div className="flex items-center gap-1">
             {weekOffset !== 0 && (
@@ -262,11 +262,11 @@ export default function WeekCalendar() {
               </button>
             )}
             <button onClick={() => setWeekOffset(w => w - 4)}
-              className="p-1.5 text-cream-200/40 hover:text-cream-100 hover:bg-navy-700 rounded-lg transition-colors">
+              className="p-1.5 text-cream-100 hover:bg-navy-700 rounded-lg transition-colors">
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <button onClick={() => setWeekOffset(w => w + 4)}
-              className="p-1.5 text-cream-200/40 hover:text-cream-100 hover:bg-navy-700 rounded-lg transition-colors">
+              className="p-1.5 text-cream-100 hover:bg-navy-700 rounded-lg transition-colors">
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -277,7 +277,7 @@ export default function WeekCalendar() {
           {LEGEND.map(([type, label]) => (
             <div key={type} className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${ITEM_STYLES[type].split(' ')[0]}`} />
-              <span className="text-xs text-cream-200/60">{label}</span>
+              <span className="text-xs text-cream-100">{label}</span>
             </div>
           ))}
         </div>
@@ -286,7 +286,7 @@ export default function WeekCalendar() {
         <div className="grid border-b border-navy-600" style={{ gridTemplateColumns: '5rem repeat(5, 1fr)' }}>
           <div />
           {DAYS.map(d => (
-            <div key={d} className="text-center text-xs font-semibold text-cream-200/60 uppercase tracking-wider py-2 border-l border-navy-600/40">
+            <div key={d} className="text-center text-xs font-semibold text-cream-100 uppercase tracking-wider py-2 border-l border-navy-600/40">
               {d}
             </div>
           ))}
@@ -304,11 +304,11 @@ export default function WeekCalendar() {
               {/* Week label */}
               <div className="p-1.5 flex flex-col justify-start gap-0.5 border-r border-navy-600/40">
                 {showMonth && (
-                  <span className="text-xs font-bold text-cream-200/80 uppercase tracking-wide leading-none">
+                  <span className="text-xs font-bold text-cream-100 uppercase tracking-wide leading-none">
                     {week[0].toLocaleDateString('en-US', { month: 'short' })}
                   </span>
                 )}
-                <span className="text-xs text-cream-200/50 leading-none mt-0.5">
+                <span className="text-xs text-cream-100 leading-none mt-0.5">
                   {week[0].getDate()}–{week[4].getDate()}
                 </span>
               </div>
@@ -318,8 +318,8 @@ export default function WeekCalendar() {
                 const dateStr = toDateStr(day)
                 const isToday = dateStr === todayStr
                 const items = itemsForDate(dateStr)
-                const visible = items.slice(0, 3)
-                const overflow = items.length - 3
+                const visible = items.slice(0, 5)
+                const overflow = items.length - 5
 
                 return (
                   <div key={di}
@@ -359,7 +359,7 @@ export default function WeekCalendar() {
                         </div>
                       ))}
                       {overflow > 0 && (
-                        <div className="text-[10px] text-cream-200/50 pl-1.5">+{overflow} more</div>
+                        <div className="text-[10px] text-cream-100 pl-1.5">+{overflow} more</div>
                       )}
                     </div>
 
