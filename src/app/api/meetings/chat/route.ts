@@ -89,7 +89,9 @@ ${sections.join('\n')}`
   const stream = anthropic.messages.stream({
     model: 'claude-opus-4-8',
     max_tokens: 1024,
-    system: systemPrompt,
+    // Cache the system prompt (contains full transcript) so repeated questions
+    // about the same meeting cost ~10% of the first call on input tokens.
+    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages: prependImageContext(messages, imageBlocks),
   })
 
