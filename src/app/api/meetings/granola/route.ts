@@ -71,7 +71,7 @@ export async function GET(request: Request) {
         ? (rawDuration > 600 ? Math.round(rawDuration / 60) : rawDuration)
         : null
 
-      const granolaSum = note.summary as string | undefined
+      const granolaSum = (note.summary_markdown ?? note.summary_text ?? note.summary) as string | undefined
       const notes = granolaSum?.trim()
         ? `--- Granola Summary ---\n${granolaSum.trim()}`
         : null
