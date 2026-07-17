@@ -289,6 +289,7 @@ export default function MeetingsPage() {
   }
 
   async function importFromGranola(granolaId: string) {
+    if (!selected) return
     setGranolaImporting(granolaId)
     try {
       const res = await fetch(`/api/meetings/granola?id=${granolaId}`)
@@ -296,38 +297,30 @@ export default function MeetingsPage() {
       const data = await res.json()
       if (data.error) throw new Error(data.error)
 
-      const payload = {
-        title: data.title,
-        meeting_date: data.meeting_date,
-        meeting_time: data.meeting_time ?? null,
-        duration_minutes: data.duration_minutes ?? null,
-        type: 'other' as MeetingType,
-        project_id: null,
-        notes: data.notes ?? null,
-        status: 'completed' as MeetingStatus,
-        attendees: [],
-        series_id: null,
-        contact_id: null,
-        transcript: data.transcript ?? null,
-      }
+      // Append Granola summary to existing notes rather than overwriting
+      const existingNotes = selected.notes?.trim() ?? ''
+      const granolaNotes = data.notes ?? ''
+      const mergedNotes = existingNotes && granolaNotes
+        ? `${existingNotes}\n\n${granolaNotes}`
+        : (granolaNotes || existingNotes || null)
 
-      const { data: inserted, error: dbErr } = await supabase
+      const { data: updated, error: dbErr } = await supabase
         .from('meetings')
-        .insert(payload)
+        .update({ transcript: data.transcript ?? null, notes: mergedNotes })
+        .eq('id', selected.id)
         .select('*, project:projects(id,name), series:meeting_series(id,name)')
         .single()
       if (dbErr) throw dbErr
 
-      const newMeeting = { ...inserted, attendees: [], action_items: [] }
-      setMeetings(prev => [newMeeting, ...prev])
-      setSelected(newMeeting)
-      setNotesDraft(newMeeting.notes ?? '')
-      setTranscriptDraft(newMeeting.transcript ?? '')
-      setActionItems([])
+      const refreshed = { ...updated, attendees: updated.attendees ?? [], action_items: updated.action_items ?? [] }
+      setMeetings(prev => prev.map(m => m.id === selected.id ? refreshed : m))
+      setSelected(refreshed)
+      setNotesDraft(refreshed.notes ?? '')
+      setTranscriptDraft(refreshed.transcript ?? '')
       setShowGranolaModal(false)
-      toast.success('Imported from Granola — click Analyze to generate summary')
+      toast.success('Transcript loaded from Granola — click Analyze to generate summary')
     } catch {
-      toast.error('Failed to import meeting')
+      toast.error('Failed to import from Granola')
     } finally {
       setGranolaImporting(null)
     }
@@ -643,14 +636,9 @@ export default function MeetingsPage() {
             <h1 className="text-lg font-bold text-cream-100 flex items-center gap-2">
               <CalendarDays className="w-5 h-5 text-gold-500" /> Meetings
             </h1>
-            <div className="flex items-center gap-2">
-              <button onClick={openGranolaImport} className="flex items-center gap-1.5 text-sm border border-navy-500 hover:bg-navy-700 text-cream-200/70 hover:text-cream-100 font-medium px-3 py-2 rounded-lg transition-colors">
-                <Download className="w-4 h-4" /> Granola
-              </button>
-              <button onClick={openAdd} className="flex items-center gap-1.5 text-sm bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-4 py-2 rounded-lg transition-colors">
-                <Plus className="w-4 h-4" /> Add
-              </button>
-            </div>
+            <button onClick={openAdd} className="flex items-center gap-1.5 text-sm bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-4 py-2 rounded-lg transition-colors">
+              <Plus className="w-4 h-4" /> Add
+            </button>
           </div>
           <div className="flex rounded-lg overflow-hidden border border-navy-600">
             <button onClick={() => setViewMode('list')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
@@ -986,6 +974,9 @@ export default function MeetingsPage() {
                   <input ref={fileInputRef} type="file" accept=".txt,.docx" onChange={handleFileUpload} className="hidden" />
                   <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-xs bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-3 py-1.5 rounded-lg transition-colors">
                     <Upload className="w-3.5 h-3.5" /> Upload .txt / .docx
+                  </button>
+                  <button onClick={openGranolaImport} className="flex items-center gap-1.5 text-xs bg-navy-700 hover:bg-navy-600 border border-navy-600 text-cream-200/60 hover:text-cream-100 px-3 py-1.5 rounded-lg transition-colors">
+                    <Download className="w-3.5 h-3.5" /> From Granola
                   </button>
                 </div>
               </div>
