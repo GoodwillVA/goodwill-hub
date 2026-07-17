@@ -32,6 +32,16 @@ OPEN QUESTIONS & UNRESOLVED ITEMS
 CONTEXT & BACKGROUND NOTED
 • Only if notable background or constraints were mentioned that inform future work.
 
+Meeting context notes:
+- If the context includes a section marked "--- Granola Summary ---", treat that section as a pre-existing AI-generated summary from another tool. Use it as a reference to cross-check your own analysis but do not simply repeat it — produce an independent structured summary in the format below.
+- Any content in the context outside of a Granola Summary block is the user's own notes or agenda. Treat it as first-hand context about the meeting's purpose and topics.
+
+Speaker attribution:
+- "Jon:" or "Microphone:" = Jon Harris, the note-taker
+- "Speaker:", "Speaker 1:", "Speaker 2:" = other meeting participants
+- Named speakers (e.g. "Julie:", "Arnold:") = use that name directly
+- When attributing action items, use the speaker's name if identifiable, otherwise null
+
 Guidelines:
 - Keep bullets tight — one sentence each unless more is truly needed
 - Name people, amounts, and dates when relevant

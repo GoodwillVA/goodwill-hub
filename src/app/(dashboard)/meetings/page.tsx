@@ -89,6 +89,10 @@ export default function MeetingsPage() {
   const [assignProjectId, setAssignProjectId] = useState('')
   const [assignDate, setAssignDate] = useState('')
   const [assignSaving, setAssignSaving] = useState(false)
+  const [showGranolaModal, setShowGranolaModal] = useState(false)
+  const [granolaLoading, setGranolaLoading] = useState(false)
+  const [granolaMeetings, setGranolaMeetings] = useState<{id: string; title: string; date: string; time: string | null}[]>([])
+  const [granolaImporting, setGranolaImporting] = useState<string | null>(null)
 
   useEffect(() => { load() }, [])
   useEffect(() => {
@@ -265,6 +269,68 @@ export default function MeetingsPage() {
     setMeetings(prev => prev.filter(m => m.id !== id))
     if (selected?.id === id) setSelected(null)
     toast.success('Meeting deleted')
+  }
+
+  async function openGranolaImport() {
+    setShowGranolaModal(true)
+    setGranolaLoading(true)
+    try {
+      const res = await fetch('/api/meetings/granola')
+      if (!res.ok) throw new Error('Failed to load Granola meetings')
+      const { meetings: list, error } = await res.json()
+      if (error) throw new Error(error)
+      setGranolaMeetings(list ?? [])
+    } catch {
+      toast.error('Could not load Granola meetings — check GRANOLA_API_KEY')
+      setShowGranolaModal(false)
+    } finally {
+      setGranolaLoading(false)
+    }
+  }
+
+  async function importFromGranola(granolaId: string) {
+    setGranolaImporting(granolaId)
+    try {
+      const res = await fetch(`/api/meetings/granola?id=${granolaId}`)
+      if (!res.ok) throw new Error('Failed to fetch meeting')
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+
+      const payload = {
+        title: data.title,
+        meeting_date: data.meeting_date,
+        meeting_time: data.meeting_time ?? null,
+        duration_minutes: data.duration_minutes ?? null,
+        type: 'other' as MeetingType,
+        project_id: null,
+        notes: data.notes ?? null,
+        status: 'completed' as MeetingStatus,
+        attendees: [],
+        series_id: null,
+        contact_id: null,
+        transcript: data.transcript ?? null,
+      }
+
+      const { data: inserted, error: dbErr } = await supabase
+        .from('meetings')
+        .insert(payload)
+        .select('*, project:projects(id,name), series:meeting_series(id,name)')
+        .single()
+      if (dbErr) throw dbErr
+
+      const newMeeting = { ...inserted, attendees: [], action_items: [] }
+      setMeetings(prev => [newMeeting, ...prev])
+      setSelected(newMeeting)
+      setNotesDraft(newMeeting.notes ?? '')
+      setTranscriptDraft(newMeeting.transcript ?? '')
+      setActionItems([])
+      setShowGranolaModal(false)
+      toast.success('Imported from Granola — click Analyze to generate summary')
+    } catch {
+      toast.error('Failed to import meeting')
+    } finally {
+      setGranolaImporting(null)
+    }
   }
 
   async function saveNotes() {
@@ -577,9 +643,14 @@ export default function MeetingsPage() {
             <h1 className="text-lg font-bold text-cream-100 flex items-center gap-2">
               <CalendarDays className="w-5 h-5 text-gold-500" /> Meetings
             </h1>
-            <button onClick={openAdd} className="flex items-center gap-1.5 text-sm bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-4 py-2 rounded-lg transition-colors">
-              <Plus className="w-4 h-4" /> Add
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={openGranolaImport} className="flex items-center gap-1.5 text-sm border border-navy-500 hover:bg-navy-700 text-cream-200/70 hover:text-cream-100 font-medium px-3 py-2 rounded-lg transition-colors">
+                <Download className="w-4 h-4" /> Granola
+              </button>
+              <button onClick={openAdd} className="flex items-center gap-1.5 text-sm bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-4 py-2 rounded-lg transition-colors">
+                <Plus className="w-4 h-4" /> Add
+              </button>
+            </div>
           </div>
           <div className="flex rounded-lg overflow-hidden border border-navy-600">
             <button onClick={() => setViewMode('list')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-navy-600 text-cream-100' : 'text-cream-200/50 hover:text-cream-100'}`}>
@@ -1143,6 +1214,50 @@ export default function MeetingsPage() {
           <div className="text-center">
             <CalendarDays className="w-14 h-14 mx-auto mb-4 text-gold-500/20" />
             <p className="text-base">{viewMode === 'series' ? 'Select a series from the left panel' : 'Select a meeting or add a new one'}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Granola Import Modal */}
+      {showGranolaModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setShowGranolaModal(false)}>
+          <div className="bg-navy-800 border border-navy-600 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-navy-600 shrink-0">
+              <div>
+                <h2 className="font-bold text-cream-100 flex items-center gap-2">
+                  <Download className="w-4 h-4 text-gold-500" /> Import from Granola
+                </h2>
+                <p className="text-xs text-cream-200/50 mt-0.5">Select a meeting to import its transcript and notes</p>
+              </div>
+              <button onClick={() => setShowGranolaModal(false)}><X className="w-4 h-4 text-cream-200/50" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {granolaLoading ? (
+                <div className="p-8 text-center text-cream-200/40 text-sm">Loading Granola meetings…</div>
+              ) : granolaMeetings.length === 0 ? (
+                <div className="p-8 text-center text-cream-200/40 text-sm">No meetings found in Granola</div>
+              ) : (
+                <ul className="divide-y divide-navy-700">
+                  {granolaMeetings.map(gm => (
+                    <li key={gm.id} className="flex items-center justify-between px-6 py-4 hover:bg-navy-700/50 transition-colors">
+                      <div className="min-w-0 mr-4">
+                        <p className="text-sm font-medium text-cream-100 truncate">{gm.title}</p>
+                        <p className="text-xs text-cream-200/40 mt-0.5">
+                          {gm.date}{gm.time ? ` · ${gm.time}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => importFromGranola(gm.id)}
+                        disabled={granolaImporting === gm.id}
+                        className="shrink-0 flex items-center gap-1.5 text-xs bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-navy-900 font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        {granolaImporting === gm.id ? 'Importing…' : 'Import'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}
