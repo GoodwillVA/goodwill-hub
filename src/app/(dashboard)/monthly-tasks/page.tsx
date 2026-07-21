@@ -8,7 +8,129 @@ import {
   RefreshCw, Trash2, Calendar, X, Copy, FileText, Pencil,
 } from 'lucide-react'
 
-// Active close month: day >= 20 = current month, else previous month
+// ── Business-day helpers ──────────────────────────────────────────────────────
+
+function toDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function observedHolidayDate(nominal: string): string {
+  const d = new Date(nominal + 'T00:00:00')
+  const dow = d.getDay()
+  if (dow === 6) d.setDate(d.getDate() - 1) // Sat → Fri
+  if (dow === 0) d.setDate(d.getDate() + 1) // Sun → Mon
+  return toDateStr(d)
+}
+
+function nthWeekdayOfMonth(year: number, month: number, weekday: number, n: number): string {
+  const d = new Date(year, month, 1)
+  let count = 0
+  while (d.getMonth() === month) {
+    if (d.getDay() === weekday && ++count === n) return toDateStr(d)
+    d.setDate(d.getDate() + 1)
+  }
+  return toDateStr(new Date(year, month, 1))
+}
+
+function lastWeekdayOfMonth(year: number, month: number, weekday: number): string {
+  const d = new Date(year, month + 1, 0)
+  while (d.getDay() !== weekday) d.setDate(d.getDate() - 1)
+  return toDateStr(d)
+}
+
+function getFederalHolidays(year: number): { date: string; name: string }[] {
+  const raw = [
+    { date: `${year}-01-01`, name: "New Year's Day" },
+    { date: nthWeekdayOfMonth(year, 0, 1, 3), name: 'MLK Day' },
+    { date: nthWeekdayOfMonth(year, 1, 1, 3), name: "Presidents' Day" },
+    { date: lastWeekdayOfMonth(year, 4, 1), name: 'Memorial Day' },
+    { date: `${year}-06-19`, name: 'Juneteenth' },
+    { date: `${year}-07-04`, name: 'Independence Day' },
+    { date: nthWeekdayOfMonth(year, 8, 1, 1), name: 'Labor Day' },
+    { date: nthWeekdayOfMonth(year, 9, 1, 2), name: 'Columbus Day' },
+    { date: `${year}-11-11`, name: 'Veterans Day' },
+    { date: nthWeekdayOfMonth(year, 10, 4, 4), name: 'Thanksgiving' },
+    { date: `${year}-12-25`, name: 'Christmas' },
+  ]
+  return raw.map(h => ({ ...h, date: observedHolidayDate(h.date) }))
+}
+
+function getHolidaysForPeriod(monthYear: string): { date: string; name: string }[] {
+  const [y, m] = monthYear.split('-').map(Number)
+  const d1 = new Date(y, m - 1, 1) // new month (0-indexed)
+  const d2 = new Date(y, m, 1)     // following month
+  const years = [...new Set([d1.getFullYear(), d2.getFullYear()])]
+  const all = years.flatMap(yr => getFederalHolidays(yr))
+  return all.filter(h => {
+    const hd = new Date(h.date + 'T00:00:00')
+    return (
+      (hd.getFullYear() === d1.getFullYear() && hd.getMonth() === d1.getMonth()) ||
+      (hd.getFullYear() === d2.getFullYear() && hd.getMonth() === d2.getMonth())
+    )
+  })
+}
+
+function getBusinessDayNumber(date: Date, holidays: string[]): number {
+  const yr = date.getFullYear()
+  const mo = date.getMonth()
+  const target = new Date(yr, mo, date.getDate())
+  const cur = new Date(yr, mo, 1)
+  let bd = 0
+  while (cur <= target) {
+    const dow = cur.getDay()
+    if (dow !== 0 && dow !== 6 && !holidays.includes(toDateStr(cur))) bd++
+    cur.setDate(cur.getDate() + 1)
+  }
+  return Math.max(1, bd)
+}
+
+function getNthBusinessDay(year: number, month0: number, n: number, holidays: string[]): Date {
+  const ref = new Date(year, month0, 1)
+  const yr = ref.getFullYear()
+  const mo = ref.getMonth()
+  const cur = new Date(yr, mo, 1)
+  let bd = 0
+  let lastBD = new Date(cur)
+  while (cur.getFullYear() === yr && cur.getMonth() === mo) {
+    const dow = cur.getDay()
+    if (dow !== 0 && dow !== 6 && !holidays.includes(toDateStr(cur))) {
+      bd++
+      lastBD = new Date(cur)
+      if (bd === n) return new Date(cur)
+    }
+    cur.setDate(cur.getDate() + 1)
+  }
+  return lastBD
+}
+
+function computeNewDueDate(
+  oldDue: string,
+  prevMonthYear: string,
+  newMonthYear: string,
+  newHolidays: string[],
+): string {
+  const prevStart = new Date(prevMonthYear + '-01')
+  const dueDate = new Date(oldDue + 'T00:00:00')
+  const monthOffset =
+    (dueDate.getFullYear() - prevStart.getFullYear()) * 12 +
+    (dueDate.getMonth() - prevStart.getMonth())
+  const oldYearHols = getFederalHolidays(dueDate.getFullYear()).map(h => h.date)
+  const bdNum = getBusinessDayNumber(dueDate, oldYearHols)
+  const newStart = new Date(newMonthYear + '-01')
+  const newDate = getNthBusinessDay(
+    newStart.getFullYear(),
+    newStart.getMonth() + monthOffset,
+    bdNum,
+    newHolidays,
+  )
+  return toDateStr(newDate)
+}
+
+// ── Display helpers ───────────────────────────────────────────────────────────
+
 function getActiveCloseMonthStr(): string {
   const today = new Date()
   const day = today.getDate()
@@ -43,9 +165,7 @@ function formatCompletedAt(isoStr: string): string {
 
 function sortTasks(tasks: MonthlyTask[]): MonthlyTask[] {
   return [...tasks].sort((a, b) => {
-    // Incomplete tasks first
     if (a.completed !== b.completed) return a.completed ? 1 : -1
-    // Within each group: sort by due date ascending, nulls at end
     if (!a.due_date && !b.due_date) return 0
     if (!a.due_date) return 1
     if (!b.due_date) return -1
@@ -58,6 +178,8 @@ function isOverdue(dateStr: string): boolean {
   today.setHours(0, 0, 0, 0)
   return new Date(dateStr + 'T00:00:00') < today
 }
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function MonthlyTasksPage() {
   const supabase = createClient()
@@ -88,7 +210,30 @@ export default function MonthlyTasksPage() {
   const [copyRecurring, setCopyRecurring] = useState(true)
   const [addingMonth, setAddingMonth] = useState(false)
 
+  // Delete month confirmation
+  const [showDeleteMonth, setShowDeleteMonth] = useState<string | null>(null)
+  const [deletingMonth, setDeletingMonth] = useState(false)
+
+  // Holiday state for Add Month modal
+  const [suggestedHolidays, setSuggestedHolidays] = useState<
+    { date: string; name: string; checked: boolean }[]
+  >([])
+  const [customHolidays, setCustomHolidays] = useState<string[]>([])
+  const [customHolidayDate, setCustomHolidayDate] = useState('')
+
   useEffect(() => { loadTasks() }, [])
+
+  // Recompute suggested holidays whenever the target month changes
+  useEffect(() => {
+    if (!newMonthYear) {
+      setSuggestedHolidays([])
+      return
+    }
+    const h = getHolidaysForPeriod(newMonthYear)
+    setSuggestedHolidays(h.map(x => ({ ...x, checked: true })))
+    setCustomHolidays([])
+    setCustomHolidayDate('')
+  }, [newMonthYear])
 
   async function loadTasks() {
     setLoading(true)
@@ -105,7 +250,6 @@ export default function MonthlyTasksPage() {
         grouped[task.month_year].push(task)
       }
       setTasksByMonth(grouped)
-
       const allMonths = [...new Set(data.map((t: MonthlyTask) => t.month_year))].sort((a, b) => b.localeCompare(a))
       if (!allMonths.includes(activeMonthStr)) allMonths.unshift(activeMonthStr)
       setMonths(allMonths)
@@ -168,7 +312,7 @@ export default function MonthlyTasksPage() {
     setEditingTaskId(task.id)
     setEditTitleValue(task.title)
     setEditDueDateValue(task.due_date ?? '')
-    setNotesOpenId(null) // close notes if open
+    setNotesOpenId(null)
   }
 
   function cancelEditTask() {
@@ -213,11 +357,37 @@ export default function MonthlyTasksPage() {
       setNewTitle(prev => ({ ...prev, [monthYear]: '' }))
       setNewDueDate(prev => ({ ...prev, [monthYear]: '' }))
       setNewRecurring(prev => ({ ...prev, [monthYear]: false }))
-      // Ensure month stays in list
       if (!months.includes(monthYear)) {
         setMonths(prev => [monthYear, ...prev].sort((a, b) => b.localeCompare(a)))
       }
     }
+  }
+
+  function closeAddMonthModal() {
+    setShowAddMonth(false)
+    setNewMonthYear('')
+    setCopyRecurring(true)
+    setSuggestedHolidays([])
+    setCustomHolidays([])
+    setCustomHolidayDate('')
+  }
+
+  async function deleteMonth(monthStr: string) {
+    setDeletingMonth(true)
+    const { error } = await supabase
+      .from('monthly_tasks')
+      .delete()
+      .eq('month_year', monthStr)
+    if (!error) {
+      setTasksByMonth(prev => {
+        const next = { ...prev }
+        delete next[monthStr]
+        return next
+      })
+      setMonths(prev => prev.filter(m => m !== monthStr))
+    }
+    setShowDeleteMonth(null)
+    setDeletingMonth(false)
   }
 
   async function addMonth() {
@@ -228,12 +398,18 @@ export default function MonthlyTasksPage() {
       const prevMonth = getPreviousMonthStr(newMonthYear)
       const recurring = (tasksByMonth[prevMonth] ?? []).filter(t => t.is_recurring)
       if (recurring.length > 0) {
+        const activeHols = [
+          ...suggestedHolidays.filter(h => h.checked).map(h => h.date),
+          ...customHolidays,
+        ]
         const { data, error } = await supabase
           .from('monthly_tasks')
           .insert(recurring.map((t, i) => ({
             month_year: newMonthYear,
             title: t.title,
-            due_date: null,
+            due_date: t.due_date
+              ? computeNewDueDate(t.due_date, prevMonth, newMonthYear, activeHols)
+              : null,
             is_recurring: true,
             sort_order: i,
             completed: false,
@@ -249,9 +425,7 @@ export default function MonthlyTasksPage() {
       setMonths(prev => [newMonthYear, ...prev].sort((a, b) => b.localeCompare(a)))
     }
     setExpandedMonths(prev => new Set([...prev, newMonthYear]))
-    setShowAddMonth(false)
-    setNewMonthYear('')
-    setCopyRecurring(true)
+    closeAddMonthModal()
     setAddingMonth(false)
   }
 
@@ -274,6 +448,28 @@ export default function MonthlyTasksPage() {
       </div>
     )
   }
+
+  // Derived values for Add Month modal
+  const prevMonthForModal = newMonthYear ? getPreviousMonthStr(newMonthYear) : ''
+  const recurringForModal = prevMonthForModal
+    ? (tasksByMonth[prevMonthForModal] ?? []).filter(t => t.is_recurring)
+    : []
+  const recurringCountForModal = recurringForModal.length
+  const recurringWithDueDates = recurringForModal.filter(t => t.due_date)
+  const showHolidaySection = !!newMonthYear && copyRecurring && recurringWithDueDates.length > 0
+  const activeHolsForModal = [
+    ...suggestedHolidays.filter(h => h.checked).map(h => h.date),
+    ...customHolidays,
+  ]
+  const taskPreviewForModal = showHolidaySection
+    ? recurringForModal.map(t => ({
+        title: t.title,
+        oldDue: t.due_date,
+        newDue: t.due_date && prevMonthForModal
+          ? computeNewDueDate(t.due_date, prevMonthForModal, newMonthYear, activeHolsForModal)
+          : null,
+      }))
+    : []
 
   return (
     <div className="p-8 max-w-4xl">
@@ -314,56 +510,67 @@ export default function MonthlyTasksPage() {
               }`}
             >
               {/* Month header row */}
-              <button
-                className="w-full flex items-center gap-3 p-5 text-left"
-                onClick={() => toggleExpand(month)}
-              >
-                {isExpanded
-                  ? <ChevronDown className="w-4 h-4 text-cream-200/40 shrink-0" />
-                  : <ChevronRight className="w-4 h-4 text-cream-200/40 shrink-0" />
-                }
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`font-semibold ${isActive ? 'text-cream-100' : 'text-cream-200/80'}`}>
-                      {formatMonthYear(month)}
-                    </span>
-                    {isActive && (
-                      <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-gold-500/15 text-gold-400 border border-gold-500/25">
-                        Active Close
+              <div className="flex items-center group/mhdr">
+                <button
+                  className="flex-1 flex items-center gap-3 p-5 text-left min-w-0"
+                  onClick={() => toggleExpand(month)}
+                >
+                  {isExpanded
+                    ? <ChevronDown className="w-4 h-4 text-cream-200/40 shrink-0" />
+                    : <ChevronRight className="w-4 h-4 text-cream-200/40 shrink-0" />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`font-semibold ${isActive ? 'text-cream-100' : 'text-cream-200/80'}`}>
+                        {formatMonthYear(month)}
                       </span>
-                    )}
-                    {!isActive && pct === 100 && total > 0 && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                        Complete
+                      {isActive && (
+                        <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-gold-500/15 text-gold-400 border border-gold-500/25">
+                          Active Close
+                        </span>
+                      )}
+                      {!isActive && pct === 100 && total > 0 && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                          Complete
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-xs text-cream-200/35">
+                        {total === 0 ? 'No tasks yet' : `${completed}/${total} complete · ${pct}%`}
                       </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="text-xs text-cream-200/35">
-                      {total === 0 ? 'No tasks yet' : `${completed}/${total} complete · ${pct}%`}
-                    </span>
-                    {overdueCount > 0 && (
-                      <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded-full">
-                        {overdueCount} overdue
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Mini progress bar */}
-                {total > 0 && (
-                  <div className="w-20 shrink-0 mr-1">
-                    <div className="h-1.5 bg-navy-600 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          pct === 100 ? 'bg-emerald-500' : isActive ? 'bg-gold-500' : 'bg-navy-500'
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
+                      {overdueCount > 0 && (
+                        <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded-full">
+                          {overdueCount} overdue
+                        </span>
+                      )}
                     </div>
                   </div>
-                )}
-              </button>
+
+                  {/* Mini progress bar */}
+                  {total > 0 && (
+                    <div className="w-20 shrink-0 mr-1">
+                      <div className="h-1.5 bg-navy-600 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            pct === 100 ? 'bg-emerald-500' : isActive ? 'bg-gold-500' : 'bg-navy-500'
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </button>
+
+                {/* Delete month — visible on hover */}
+                <button
+                  onClick={() => setShowDeleteMonth(month)}
+                  title="Delete this month"
+                  className="shrink-0 mr-4 p-1.5 rounded text-cream-200/0 group-hover/mhdr:text-cream-200/20 hover:!text-red-400 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
 
               {/* Expanded body */}
               {isExpanded && (
@@ -402,7 +609,6 @@ export default function MonthlyTasksPage() {
                             task.completed || notesOpenId === task.id || editingTaskId === task.id ? '' : 'hover:bg-navy-700/50'
                           }`}>
                             {editingTaskId === task.id ? (
-                              // ── Edit mode ──────────────────────────────────
                               <>
                                 <input
                                   autoFocus
@@ -437,9 +643,7 @@ export default function MonthlyTasksPage() {
                                 </button>
                               </>
                             ) : (
-                              // ── Normal mode ────────────────────────────────
                               <>
-                                {/* Checkbox */}
                                 <button
                                   onClick={() => toggleTask(task)}
                                   className={`w-5 h-5 shrink-0 rounded border-2 transition-colors flex items-center justify-center ${
@@ -451,14 +655,12 @@ export default function MonthlyTasksPage() {
                                   {task.completed && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                                 </button>
 
-                                {/* Title */}
                                 <span className={`flex-1 text-sm min-w-0 ${
                                   task.completed ? 'line-through text-cream-200/35' : 'text-cream-100'
                                 }`}>
                                   {task.title}
                                 </span>
 
-                                {/* Due date */}
                                 {task.due_date && (
                                   <span className={`text-xs shrink-0 ${
                                     !task.completed && isOverdue(task.due_date)
@@ -469,14 +671,12 @@ export default function MonthlyTasksPage() {
                                   </span>
                                 )}
 
-                                {/* Completion date */}
                                 {task.completed && task.completed_at && (
                                   <span className="text-xs text-emerald-400/60 shrink-0">
                                     ✓ {formatCompletedAt(task.completed_at)}
                                   </span>
                                 )}
 
-                                {/* Edit — hover-only */}
                                 <button
                                   onClick={() => startEditTask(task)}
                                   title="Edit title or due date"
@@ -485,7 +685,6 @@ export default function MonthlyTasksPage() {
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
 
-                                {/* Notes toggle */}
                                 <button
                                   onClick={() => setNotesOpenId(notesOpenId === task.id ? null : task.id)}
                                   title={task.notes ? 'View/edit notes' : 'Add notes'}
@@ -498,7 +697,6 @@ export default function MonthlyTasksPage() {
                                   <FileText className="w-3.5 h-3.5" />
                                 </button>
 
-                                {/* Recurring toggle */}
                                 <button
                                   onClick={() => toggleRecurring(task)}
                                   title={task.is_recurring ? 'Recurring — click to remove' : 'Mark as recurring'}
@@ -511,7 +709,6 @@ export default function MonthlyTasksPage() {
                                   <RefreshCw className="w-3.5 h-3.5" />
                                 </button>
 
-                                {/* Delete */}
                                 <button
                                   onClick={() => deleteTask(task)}
                                   className="shrink-0 text-cream-200/0 group-hover:text-cream-200/25 hover:!text-red-400 transition-colors"
@@ -616,18 +813,61 @@ export default function MonthlyTasksPage() {
         )}
       </div>
 
-      {/* Add Month modal */}
+      {/* ── Delete Month confirmation modal ─────────────────────────────────── */}
+      {showDeleteMonth && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-navy-800 border border-red-500/30 rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="shrink-0 w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-cream-100">
+                  Delete {formatMonthYear(showDeleteMonth)}?
+                </h2>
+                <p className="text-sm text-cream-200/50 mt-1">
+                  {(() => {
+                    const count = (tasksByMonth[showDeleteMonth] ?? []).length
+                    return count === 0
+                      ? 'This month has no tasks. It will be removed from the list.'
+                      : `This will permanently delete ${count} task${count !== 1 ? 's' : ''}. This cannot be undone.`
+                  })()}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteMonth(null)}
+                disabled={deletingMonth}
+                className="flex-1 px-4 py-2 border border-navy-500 text-cream-200/70 rounded-lg text-sm hover:bg-navy-700 transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMonth(showDeleteMonth)}
+                disabled={deletingMonth}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg font-medium text-sm hover:bg-red-400 disabled:opacity-40 transition-colors"
+              >
+                {deletingMonth ? 'Deleting…' : 'Delete Month'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Month modal ──────────────────────────────────────────────────── */}
       {showAddMonth && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-navy-800 border border-navy-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
+          <div className="bg-navy-800 border border-navy-600 rounded-xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-semibold text-cream-100">Add Month</h2>
-              <button onClick={() => { setShowAddMonth(false); setNewMonthYear('') }} className="text-cream-200/40 hover:text-cream-100 transition-colors">
+              <button onClick={closeAddMonthModal} className="text-cream-200/40 hover:text-cream-100 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4">
+              {/* Month picker */}
               <div>
                 <label className="block text-xs font-medium text-cream-200/50 uppercase tracking-wider mb-1.5">
                   Month & Year
@@ -640,37 +880,134 @@ export default function MonthlyTasksPage() {
                 />
               </div>
 
-              {/* Copy recurring option — only shown when previous month has recurring tasks */}
-              {(() => {
-                if (!newMonthYear) return null
-                const prevMonth = getPreviousMonthStr(newMonthYear)
-                const recurringCount = (tasksByMonth[prevMonth] ?? []).filter(t => t.is_recurring).length
-                if (recurringCount === 0) return null
-                return (
-                  <label className="flex items-start gap-3 p-3 bg-navy-700/50 rounded-lg cursor-pointer select-none border border-navy-500/50">
-                    <input
-                      type="checkbox"
-                      checked={copyRecurring}
-                      onChange={e => setCopyRecurring(e.target.checked)}
-                      className="mt-0.5 accent-gold-500 shrink-0"
-                    />
-                    <div>
-                      <p className="text-sm text-cream-100 font-medium flex items-center gap-1.5">
-                        <Copy className="w-3.5 h-3.5 text-gold-400" />
-                        Copy recurring tasks
-                      </p>
-                      <p className="text-xs text-cream-200/40 mt-0.5">
-                        {recurringCount} recurring task{recurringCount !== 1 ? 's' : ''} from {formatMonthYear(prevMonth)} will be added
-                      </p>
+              {/* Copy recurring tasks */}
+              {recurringCountForModal > 0 && (
+                <label className="flex items-start gap-3 p-3 bg-navy-700/50 rounded-lg cursor-pointer select-none border border-navy-500/50">
+                  <input
+                    type="checkbox"
+                    checked={copyRecurring}
+                    onChange={e => setCopyRecurring(e.target.checked)}
+                    className="mt-0.5 accent-gold-500 shrink-0"
+                  />
+                  <div>
+                    <p className="text-sm text-cream-100 font-medium flex items-center gap-1.5">
+                      <Copy className="w-3.5 h-3.5 text-gold-400" />
+                      Copy recurring tasks
+                    </p>
+                    <p className="text-xs text-cream-200/40 mt-0.5">
+                      {recurringCountForModal} recurring task{recurringCountForModal !== 1 ? 's' : ''} from {formatMonthYear(prevMonthForModal)}
+                      {recurringWithDueDates.length > 0
+                        ? ' — due dates adjusted to matching business days'
+                        : ' will be added'}
+                    </p>
+                  </div>
+                </label>
+              )}
+
+              {/* Holidays section */}
+              {showHolidaySection && (
+                <div className="space-y-3 p-3 bg-navy-700/30 rounded-lg border border-navy-600/50">
+                  <div>
+                    <p className="text-xs font-medium text-cream-200/60 uppercase tracking-wider">
+                      Holidays in schedule period
+                    </p>
+                    <p className="text-xs text-cream-200/35 mt-0.5">
+                      Federal holidays are pre-checked. Uncheck any that should count as a working day.
+                    </p>
+                  </div>
+
+                  {suggestedHolidays.length === 0 && customHolidays.length === 0 ? (
+                    <p className="text-xs text-cream-200/30 italic">No federal holidays detected in this period.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {suggestedHolidays.map(h => (
+                        <label key={h.date} className="flex items-center gap-2.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={h.checked}
+                            onChange={e =>
+                              setSuggestedHolidays(prev =>
+                                prev.map(x => x.date === h.date ? { ...x, checked: e.target.checked } : x)
+                              )
+                            }
+                            className="accent-gold-500 shrink-0"
+                          />
+                          <span className="text-sm text-cream-100">{formatDueDate(h.date)}</span>
+                          <span className="text-xs text-cream-200/35">— {h.name}</span>
+                        </label>
+                      ))}
+                      {customHolidays.map(d => (
+                        <div key={d} className="flex items-center gap-2.5 pl-5">
+                          <span className="text-sm text-cream-100">{formatDueDate(d)}</span>
+                          <span className="text-xs text-cream-200/35">— custom</span>
+                          <button
+                            onClick={() => setCustomHolidays(prev => prev.filter(x => x !== d))}
+                            className="ml-auto text-cream-200/30 hover:text-red-400 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  </label>
-                )
-              })()}
+                  )}
+
+                  {/* Add custom holiday date */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="date"
+                      value={customHolidayDate}
+                      onChange={e => setCustomHolidayDate(e.target.value)}
+                      className="flex-1 bg-navy-700 border border-navy-500 rounded px-2.5 py-1.5 text-xs text-cream-100 focus:outline-none focus:border-gold-500/50 [color-scheme:dark]"
+                    />
+                    <button
+                      onClick={() => {
+                        if (
+                          customHolidayDate &&
+                          !customHolidays.includes(customHolidayDate) &&
+                          !suggestedHolidays.find(h => h.date === customHolidayDate)
+                        ) {
+                          setCustomHolidays(prev => [...prev, customHolidayDate].sort())
+                          setCustomHolidayDate('')
+                        }
+                      }}
+                      disabled={!customHolidayDate}
+                      className="shrink-0 px-3 py-1.5 text-xs bg-navy-600 border border-navy-500 text-cream-200/60 rounded hover:bg-navy-500 disabled:opacity-40 transition-colors"
+                    >
+                      Add date
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Schedule preview */}
+              {taskPreviewForModal.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-cream-200/50 uppercase tracking-wider mb-2">
+                    Schedule preview
+                  </p>
+                  <div className="bg-navy-700/40 rounded-lg divide-y divide-navy-600/40 max-h-44 overflow-y-auto">
+                    {taskPreviewForModal.map((t, i) => (
+                      <div key={i} className="flex items-center gap-2 px-3 py-2">
+                        <span className="flex-1 text-xs text-cream-200/70 truncate min-w-0">{t.title}</span>
+                        {t.oldDue ? (
+                          <span className="shrink-0 text-xs font-mono whitespace-nowrap">
+                            <span className="text-cream-200/30">{formatDueDate(t.oldDue)}</span>
+                            <span className="text-cream-200/20 mx-1.5">→</span>
+                            <span className="text-gold-400">{t.newDue ? formatDueDate(t.newDue) : '—'}</span>
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-xs text-cream-200/20">no due date</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => { setShowAddMonth(false); setNewMonthYear('') }}
+                onClick={closeAddMonthModal}
                 className="flex-1 px-4 py-2 border border-navy-500 text-cream-200/70 rounded-lg text-sm hover:bg-navy-700 transition-colors"
               >
                 Cancel
