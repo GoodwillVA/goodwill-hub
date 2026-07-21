@@ -85,7 +85,17 @@ export async function GET(request: Request) {
         notes,
       })
     } else {
-      const data = await granolaFetch('/notes') as Record<string, unknown>
+      // Find "Meetings to Process" folder to scope the listing
+      let folderParam = ''
+      try {
+        const foldersData = await granolaFetch('/folders') as { folders: { id: string; name: string }[] }
+        const target = (foldersData.folders ?? []).find(f => f.name === 'Meetings to Process')
+        if (target?.id) folderParam = `?folder_id=${target.id}&page_size=30`
+      } catch {
+        // Folder lookup failed — fall back to unfiltered list
+      }
+
+      const data = await granolaFetch(`/notes${folderParam || '?page_size=30'}`) as Record<string, unknown>
       const list = ((data.notes ?? []) as Record<string, unknown>[]).map(n => {
         const { date, time } = parseDateTime(n)
         return {
@@ -93,7 +103,6 @@ export async function GET(request: Request) {
           title: String(n.title ?? 'Untitled'),
           date,
           time,
-          participantCount: Array.isArray(n.participants) ? (n.participants as unknown[]).length : null,
         }
       })
       return Response.json({ meetings: list })
