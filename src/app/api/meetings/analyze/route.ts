@@ -105,12 +105,13 @@ export async function POST(request: Request) {
 
   const message = await anthropic.messages.create({
     model: 'claude-opus-5',
-    max_tokens: 2048,             // summaries rarely exceed 1200 tokens; 2048 is safe headroom
+    max_tokens: 8192,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userContent }],
   })
 
-  const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+  const textBlock = message.content.find(b => b.type === 'text')
+  const raw = textBlock?.type === 'text' ? textBlock.text : ''
 
   try {
     const parsed = JSON.parse(raw)
