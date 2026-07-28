@@ -104,7 +104,7 @@ export async function POST(request: Request) {
   ]
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',   // sonnet is excellent at structured extraction; opus is overkill here
+    model: 'claude-opus-5',
     max_tokens: 2048,             // summaries rarely exceed 1200 tokens; 2048 is safe headroom
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userContent }],

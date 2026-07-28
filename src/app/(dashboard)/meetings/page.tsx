@@ -620,10 +620,18 @@ export default function MeetingsPage() {
   const todayDateStr = new Date().toISOString().split('T')[0]
   const upcomingMeetings = filteredMeetings
     .filter(m => m.meeting_date >= todayDateStr)
-    .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date))
+    .sort((a, b) => {
+      const d = a.meeting_date.localeCompare(b.meeting_date)
+      if (d !== 0) return d
+      return (a.meeting_time ?? '').localeCompare(b.meeting_time ?? '')
+    })
   const pastMeetings = filteredMeetings
     .filter(m => m.meeting_date < todayDateStr)
-    .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date))
+    .sort((a, b) => {
+      const d = b.meeting_date.localeCompare(a.meeting_date)
+      if (d !== 0) return d
+      return (b.meeting_time ?? '').localeCompare(a.meeting_time ?? '')
+    })
 
   const typeObj = (t: MeetingType) => TYPES.find(x => x.value === t)!
 
