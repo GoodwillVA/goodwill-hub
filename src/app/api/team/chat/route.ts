@@ -88,7 +88,7 @@ ${contextLines}${meetingContext}
 Help Jon think through performance conversations, draft feedback, develop coaching approaches, plan 1:1 agendas, work through team dynamics, recognize strengths, or address any challenge related to leading this team member. Be practical and specific — Jon manages accounting professionals in a nonprofit environment.${attachmentContext}`
 
   const stream = anthropic.messages.stream({
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-5',
     max_tokens: 1024,
     system: systemPrompt,
     messages: prependImageContext(messages, imageBlocks),

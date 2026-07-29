@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const { messages }: { messages: ChatMessage[] } = await request.json()
 
   const stream = anthropic.messages.stream({
-    model: 'claude-opus-4-8',
+    model: 'claude-opus-5',
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
     messages,

@@ -103,7 +103,7 @@ Help Jon brainstorm approaches, identify risks, draft communications, think thro
   }
 
   const stream = anthropic.messages.stream({
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-5',
     max_tokens: 1024,
     system: systemPrompt,
     messages: prependImageContext(messages, imageBlocks),
