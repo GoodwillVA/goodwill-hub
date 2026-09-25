@@ -76,6 +76,12 @@ export default function MeetingsPage() {
   const [seriesStreamingFor, setSeriesStreamingFor] = useState<string | null>(null)
   const [seriesStreamingText, setSeriesStreamingText] = useState('')
   const seriesAiEndRef = useRef<HTMLDivElement>(null)
+  const [showAllAi, setShowAllAi] = useState(false)
+  const [allAiInput, setAllAiInput] = useState('')
+  const [allAiThread, setAllAiThread] = useState<ChatMessage[]>([])
+  const [allAiStreaming, setAllAiStreaming] = useState(false)
+  const [allAiStreamingText, setAllAiStreamingText] = useState('')
+  const allAiEndRef = useRef<HTMLDivElement>(null)
   const [meetingChatInput, setMeetingChatInput] = useState('')
   const [meetingChatThread, setMeetingChatThread] = useState<ChatMessage[]>([])
   const [meetingChatStreaming, setMeetingChatStreaming] = useState(false)
@@ -109,14 +115,19 @@ export default function MeetingsPage() {
   useEffect(() => {
     meetingChatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [meetingChatThread, meetingChatStreamingText])
+  useEffect(() => {
+    allAiEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [allAiThread, allAiStreamingText])
 
   async function load() {
-    const [{ data: m }, { data: p }, { data: s }, { data: sa }] = await Promise.all([
+    const [{ data: m }, { data: p }, { data: s }, { data: sa }, { data: allAi }] = await Promise.all([
       supabase.from('meetings').select('*, project:projects(id,name), series:meeting_series(id,name)').order('meeting_date', { ascending: false }),
       supabase.from('projects').select('id,name').order('name'),
       supabase.from('meeting_series').select('*').order('name'),
       supabase.from('saved_attendees').select('*').order('name'),
+      supabase.from('meetings_ai_settings').select('ai_thread').eq('id', 1).maybeSingle(),
     ])
+    setAllAiThread(allAi?.ai_thread ?? [])
     setMeetings((m ?? []).map(mtg => ({ ...mtg, attendees: mtg.attendees ?? [], action_items: mtg.action_items ?? [] })))
     setProjects(p ?? [])
     setSeriesList(s ?? [])
@@ -583,6 +594,45 @@ export default function MeetingsPage() {
     setSeriesList(prev => prev.map(s => s.id === seriesId ? { ...s, ai_thread: [] } : s))
   }
 
+  async function sendAllAiMessage() {
+    const input = allAiInput.trim()
+    if (!input || allAiStreaming) return
+    const newThread: ChatMessage[] = [...allAiThread, { role: 'user', content: input }]
+    setAllAiThread(newThread)
+    setAllAiInput('')
+    setAllAiStreaming(true)
+    setAllAiStreamingText('')
+    try {
+      const res = await fetch('/api/meetings/all-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: newThread }),
+      })
+      if (!res.ok) throw new Error()
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let full = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        full += decoder.decode(value, { stream: true })
+        setAllAiStreamingText(full)
+      }
+      const finalThread: ChatMessage[] = [...newThread, { role: 'assistant', content: full }]
+      setAllAiThread(finalThread)
+      await supabase.from('meetings_ai_settings').upsert({ id: 1, ai_thread: finalThread, updated_at: new Date().toISOString() })
+    } catch {
+      toast.error('AI request failed')
+    }
+    setAllAiStreaming(false)
+    setAllAiStreamingText('')
+  }
+
+  async function clearAllAiThread() {
+    setAllAiThread([])
+    await supabase.from('meetings_ai_settings').upsert({ id: 1, ai_thread: [], updated_at: new Date().toISOString() })
+  }
+
   // Calendar helpers
   const calYear = calDate.getFullYear()
   const calMonth = calDate.getMonth()
@@ -716,12 +766,21 @@ export default function MeetingsPage() {
 
         {viewMode === 'series' ? (
           <ul className="flex-1 overflow-y-auto divide-y divide-navy-600">
+            <li onClick={() => { setShowAllAi(true); setSelectedSeries(null) }}
+              className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${showAllAi ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3 h-3 text-gold-500 shrink-0" />
+                <p className="text-sm text-cream-100 font-medium">All Meetings</p>
+              </div>
+              <p className="text-[10px] text-cream-200/40 mt-0.5 pl-5">{meetings.length} meeting{meetings.length !== 1 ? 's' : ''}{allAiThread.length > 0 ? ' · AI active' : ''}</p>
+            </li>
             {seriesList.length === 0 ? (
               <li className="p-4 text-sm text-cream-200/40">No series yet. Assign a meeting to a series to get started.</li>
             ) : seriesList.map(s => {
               const count = meetings.filter(m => m.series_id === s.id).length
               return (
-                <li key={s.id} onClick={() => setSelectedSeries(s)}
+                <li key={s.id} onClick={() => { setSelectedSeries(s); setShowAllAi(false) }}
                   className={`p-3 cursor-pointer hover:bg-navy-700 transition-colors ${selectedSeries?.id === s.id ? 'bg-navy-700 border-l-2 border-gold-500' : ''}`}
                 >
                   <div className="flex items-center gap-2">
@@ -824,7 +883,73 @@ export default function MeetingsPage() {
       </div>
 
       {/* Right panel */}
-      {viewMode === 'series' && selectedSeries ? (
+      {viewMode === 'series' && showAllAi ? (
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+          <div className="p-5 border-b border-navy-600 sticky top-0 bg-navy-900 z-10">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="w-4 h-4 text-gold-500" />
+              <h2 className="text-lg font-bold text-cream-100">All Meetings</h2>
+            </div>
+            <p className="text-xs text-cream-200/40">Ask questions across all {meetings.length} meetings</p>
+          </div>
+          <div className="p-5">
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-semibold text-cream-200/40 uppercase tracking-wider">All Meetings AI Advisor</p>
+                {allAiThread.length > 0 && (
+                  <button onClick={clearAllAiThread}
+                    className="flex items-center gap-1 text-[10px] text-cream-200/30 hover:text-cream-200/60 transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Clear
+                  </button>
+                )}
+              </div>
+              <div className="bg-navy-800 border border-navy-600 rounded-xl overflow-hidden">
+                <div className="h-[32rem] overflow-y-auto p-4 space-y-3">
+                  {allAiThread.length === 0 && !allAiStreaming ? (
+                    <p className="text-sm text-cream-200/30 text-center py-8">Ask about anything across your meetings — open action items by person, topics that keep coming up, what was decided last month, or what to prepare for this week.</p>
+                  ) : (
+                    <>
+                      {allAiThread.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-gold-500/20 text-cream-100' : 'bg-navy-700 text-cream-100'}`}>
+                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {allAiStreaming && (
+                        <div className="flex justify-start">
+                          <div className="max-w-[85%] rounded-xl px-3 py-2 text-sm bg-navy-700 text-cream-100 leading-relaxed">
+                            <p className="whitespace-pre-wrap">{allAiStreamingText || '…'}</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <div ref={allAiEndRef} />
+                </div>
+                <div className="border-t border-navy-600 p-3 flex gap-2">
+                  <input
+                    value={allAiInput}
+                    onChange={e => setAllAiInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendAllAiMessage())}
+                    placeholder="Ask across all meetings…"
+                    disabled={allAiStreaming}
+                    className="flex-1 bg-navy-700 border border-navy-600 rounded-lg text-sm text-cream-100 px-3 py-2 placeholder-cream-200/25 focus:border-gold-500 focus:outline-none disabled:opacity-50"
+                  />
+                  <button
+                    onClick={sendAllAiMessage}
+                    disabled={!allAiInput.trim() || allAiStreaming}
+                    className="bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-navy-900 p-2 rounded-lg transition-colors"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      ) : viewMode === 'series' && selectedSeries ? (
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           <div className="p-5 border-b border-navy-600 sticky top-0 bg-navy-900 z-10">
             <div className="flex items-center gap-2 mb-1">
