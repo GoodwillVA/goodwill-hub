@@ -87,8 +87,8 @@ You have complete context for a specific meeting. Answer questions accurately an
 ${sections.join('\n')}`
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-5',
-    max_tokens: 1024,
+    model: 'claude-sonnet-5-5',
+    max_tokens: 8192,
     // Cache the system prompt (contains full transcript) so repeated questions
     // about the same meeting cost ~10% of the first call on input tokens.
     system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],

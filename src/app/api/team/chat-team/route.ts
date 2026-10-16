@@ -108,8 +108,8 @@ ${memberContext}${meetingContext}
 Help Jon with team-wide thinking: workload distribution, identifying patterns across the team, coaching strategies, team communication, prioritization, identifying who needs support, succession planning, or anything else related to leading his accounting team effectively. Be practical and grounded in nonprofit accounting operations.${attachmentContext}`
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-5',
-    max_tokens: 1024,
+    model: 'claude-sonnet-5-5',
+    max_tokens: 8192,
     system: systemPrompt,
     messages: prependImageContext(messages, imageBlocks),
   })

@@ -56,7 +56,7 @@ ${meetingContext || 'No meeting details available yet.'}
 Help Jon find information across meetings, identify themes and patterns, track open action items by person or topic, spot issues that keep resurfacing across different groups, summarize what was decided over a time period, or prepare for upcoming meetings. Be specific — reference actual meetings, dates, and items from the context above. If the answer isn't in the meeting records, say so rather than guessing.`
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-5-5',
     max_tokens: 8192,
     system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages,

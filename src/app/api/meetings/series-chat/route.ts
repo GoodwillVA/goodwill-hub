@@ -89,8 +89,8 @@ ${meetingContext || 'No meeting details available yet.'}${seriesAttachmentContex
 Help Jon identify patterns across meetings in this series, track progress on recurring action items, spot topics that keep resurfacing, summarize what's been decided or agreed, draft agendas for upcoming sessions, or provide any other insight about this series. Be specific — reference actual meetings, dates, and items from the context above.`
 
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-5',
-    max_tokens: 1024,
+    model: 'claude-sonnet-5-5',
+    max_tokens: 8192,
     system: systemPrompt,
     messages: prependImageContext(messages, imageBlocks),
   })

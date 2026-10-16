@@ -37,8 +37,8 @@ export async function POST(request: Request) {
     : prompt
 
   const stream = anthropic.messages.stream({
-    model: 'claude-haiku-4-5',
-    max_tokens: 1024,
+    model: 'claude-haiku-5-5',
+    max_tokens: 8192,
     system: styleOverride || SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   })
